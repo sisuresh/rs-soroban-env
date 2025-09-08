@@ -3161,6 +3161,140 @@ impl VmCallerEnv for Host {
         self.check_pairing_output(&output)
     }
 
+    fn bn254_g1_add(
+        &self,
+        _vmcaller: &mut VmCaller<Host>,
+        p0: BytesObject,
+        p1: BytesObject,
+    ) -> Result<BytesObject, HostError> {
+        let p0 = self.bn254_g1_affine_deserialize_from_bytesobj(p0, false)?;
+        let p1 = self.bn254_g1_affine_deserialize_from_bytesobj(p1, false)?;
+        let res = self.bn254_g1_add_internal(p0, p1)?;
+        let res = self.bn254_g1_projective_into_affine(res)?;
+        self.bn254_g1_affine_serialize_uncompressed(&res)
+    }
+
+    fn bn254_g1_mul(
+        &self,
+        _vmcaller: &mut VmCaller<Host>,
+        p0: BytesObject,
+        scalar: U256Val,
+    ) -> Result<BytesObject, HostError> {
+        let p0 = self.bn254_g1_affine_deserialize_from_bytesobj(p0, true)?;
+        let scalar = self.bn254_fr_from_u256val(scalar)?;
+        let res = self.bn254_g1_mul_internal(p0, scalar)?;
+        let res = self.bn254_g1_projective_into_affine(res)?;
+        self.bn254_g1_affine_serialize_uncompressed(&res)
+    }
+
+    fn bn254_g1_msm(
+        &self,
+        _vmcaller: &mut VmCaller<Host>,
+        vp: VecObject,
+        vs: VecObject,
+    ) -> Result<BytesObject, HostError> {
+        let points = self.bn254_checked_g1_vec_from_vecobj(vp)?;
+        let scalars = self.bn254_fr_vec_from_vecobj(vs)?;
+        let res = self.bn254_msm_internal(&points, &scalars, "G1")?;
+        let res = self.bn254_g1_projective_into_affine(res)?;
+        self.bn254_g1_affine_serialize_uncompressed(&res)
+    }
+
+    fn bn254_g2_add(
+        &self,
+        _vmcaller: &mut VmCaller<Host>,
+        p0: BytesObject,
+        p1: BytesObject,
+    ) -> Result<BytesObject, HostError> {
+        let p0 = self.bn254_g2_affine_deserialize_from_bytesobj(p0, false)?;
+        let p1 = self.bn254_g2_affine_deserialize_from_bytesobj(p1, false)?;
+        let res = self.bn254_g2_add_internal(p0, p1)?;
+        let res = self.bn254_g2_projective_into_affine(res)?;
+        self.bn254_g2_affine_serialize_uncompressed(&res)
+    }
+
+    fn bn254_g2_mul(
+        &self,
+        _vmcaller: &mut VmCaller<Host>,
+        p0: BytesObject,
+        scalar: U256Val,
+    ) -> Result<BytesObject, HostError> {
+        let p0 = self.bn254_g2_affine_deserialize_from_bytesobj(p0, true)?;
+        let scalar = self.bn254_fr_from_u256val(scalar)?;
+        let res = self.bn254_g2_mul_internal(p0, scalar)?;
+        let res = self.bn254_g2_projective_into_affine(res)?;
+        self.bn254_g2_affine_serialize_uncompressed(&res)
+    }
+
+    fn bn254_g2_msm(
+        &self,
+        _vmcaller: &mut VmCaller<Host>,
+        vp: VecObject,
+        vs: VecObject,
+    ) -> Result<BytesObject, HostError> {
+        let points = self.bn254_checked_g2_vec_from_vecobj(vp)?;
+        let scalars = self.bn254_fr_vec_from_vecobj(vs)?;
+        let res = self.bn254_msm_internal(&points, &scalars, "G2")?;
+        let res = self.bn254_g2_projective_into_affine(res)?;
+        self.bn254_g2_affine_serialize_uncompressed(&res)
+    }
+
+    fn bn254_multi_pairing_check(
+        &self,
+        vmcaller: &mut VmCaller<Host>,
+        vp1: VecObject,
+        vp2: VecObject,
+    ) -> Result<Bool, HostError> {
+        let l1: u32 = self.vec_len(vmcaller, vp1)?.into();
+        let l2: u32 = self.vec_len(vmcaller, vp2)?.into();
+        if l1 != l2 || l1 == 0 {
+            return Err(self.err(
+                ScErrorType::Crypto,
+                ScErrorCode::InvalidInput,
+                format!("multi-pairing-check: invalid input vector lengths {l1} and {l2}").as_str(),
+                &[],
+            ));
+        }
+        let vp1 = self.bn254_checked_g1_vec_from_vecobj(vp1)?;
+        let vp2 = self.bn254_checked_g2_vec_from_vecobj(vp2)?;
+        let output = self.bn254_pairing_internal(&vp1, &vp2)?;
+        self.bn254_check_pairing_output(&output)
+    }
+
+    fn bn254_map_fp_to_g1(
+        &self,
+        _vmcaller: &mut VmCaller<Host>,
+        fp: BytesObject,
+    ) -> Result<BytesObject, HostError> {
+        self.bn254_map_fp_to_g1_internal(fp)
+    }
+
+    fn bn254_map_fp2_to_g2(
+        &self,
+        _vmcaller: &mut VmCaller<Host>,
+        fp2: BytesObject,
+    ) -> Result<BytesObject, HostError> {
+        self.bn254_map_fp2_to_g2_internal(fp2)
+    }
+
+    fn bn254_hash_to_g1(
+        &self,
+        _vmcaller: &mut VmCaller<Host>,
+        msg: BytesObject,
+        dst: BytesObject,
+    ) -> Result<BytesObject, HostError> {
+        self.bn254_hash_to_g1_internal(msg, dst)
+    }
+
+    fn bn254_hash_to_g2(
+        &self,
+        _vmcaller: &mut VmCaller<Host>,
+        msg: BytesObject,
+        dst: BytesObject,
+    ) -> Result<BytesObject, HostError> {
+        self.bn254_hash_to_g2_internal(msg, dst)
+    }
+
     impl_bls12_381_fr_arith_host_fns!(bls12_381_fr_add, fr_add_internal);
     impl_bls12_381_fr_arith_host_fns!(bls12_381_fr_sub, fr_sub_internal);
     impl_bls12_381_fr_arith_host_fns!(bls12_381_fr_mul, fr_mul_internal);
