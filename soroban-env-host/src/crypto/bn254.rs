@@ -14,8 +14,8 @@ use num_traits::Zero;
 use crate::{
     host_object::HostVec,
     xdr::{ContractCostType, ScBytes, ScErrorCode, ScErrorType},
-    Bool, BytesObject, Host, HostError, TryFromVal, U256Object, U256Small, U256Val, Val, VecObject,
-    U256,
+    Bool, BytesObject, ErrorHandler, Host, HostError, TryFromVal, U256Object, U256Small, U256Val,
+    Val, VecObject, U256,
 };
 
 pub(crate) const BN254_FP_SERIALIZED_SIZE: usize = 32;
@@ -324,6 +324,17 @@ impl Host {
             })?
         };
         Ok(fr)
+    }
+
+    pub(crate) fn bn254_fr_to_u256val(&self, scalar: Fr) -> Result<U256Val, HostError> {
+        self.charge_budget(ContractCostType::MemCpy, None)?;
+        let bytes: [u8; 32] = scalar
+            .into_bigint()
+            .to_bytes_be()
+            .try_into()
+            .map_err(|_| self.bn254_err_invalid_input("bn254 Fr: to_bytes_be failed"))?;
+        let u = U256::from_be_bytes(bytes);
+        self.map_err(U256Val::try_from_val(self, &u))
     }
 
     pub(crate) fn bn254_fr_vec_from_vecobj(&self, vs: VecObject) -> Result<Vec<Fr>, HostError> {

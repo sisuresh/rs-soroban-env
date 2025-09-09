@@ -3295,6 +3295,102 @@ impl VmCallerEnv for Host {
         self.bn254_hash_to_g2_internal(msg, dst)
     }
 
+    fn bn254_check_g1_is_in_subgroup(
+        &self,
+        _vmcaller: &mut VmCaller<Host>,
+        pt: BytesObject,
+    ) -> Result<Bool, HostError> {
+        let pt = self.bn254_g1_affine_deserialize_from_bytesobj(pt, false)?;
+        self.bn254_check_point_is_in_subgroup(&pt)
+            .map(|b| Bool::from(b))
+    }
+
+    fn bn254_check_g2_is_in_subgroup(
+        &self,
+        _vmcaller: &mut VmCaller<Host>,
+        pt: BytesObject,
+    ) -> Result<Bool, HostError> {
+        let pt = self.bn254_g2_affine_deserialize_from_bytesobj(pt, false)?;
+        self.bn254_check_point_is_in_subgroup(&pt)
+            .map(|b| Bool::from(b))
+    }
+
+    fn bn254_fr_add(
+        &self,
+        _vmcaller: &mut VmCaller<Host>,
+        lhs: U256Val,
+        rhs: U256Val,
+    ) -> Result<U256Val, HostError> {
+        let lhs = self.bn254_fr_from_u256val(lhs)?;
+        let rhs = self.bn254_fr_from_u256val(rhs)?;
+        let res = lhs + rhs;
+        self.bn254_fr_to_u256val(res)
+    }
+
+    fn bn254_fr_sub(
+        &self,
+        _vmcaller: &mut VmCaller<Host>,
+        lhs: U256Val,
+        rhs: U256Val,
+    ) -> Result<U256Val, HostError> {
+        let lhs = self.bn254_fr_from_u256val(lhs)?;
+        let rhs = self.bn254_fr_from_u256val(rhs)?;
+        let res = lhs - rhs;
+        self.bn254_fr_to_u256val(res)
+    }
+
+    fn bn254_fr_mul(
+        &self,
+        _vmcaller: &mut VmCaller<Host>,
+        lhs: U256Val,
+        rhs: U256Val,
+    ) -> Result<U256Val, HostError> {
+        let lhs = self.bn254_fr_from_u256val(lhs)?;
+        let rhs = self.bn254_fr_from_u256val(rhs)?;
+        let res = lhs * rhs;
+        self.bn254_fr_to_u256val(res)
+    }
+
+    fn bn254_fr_pow(
+        &self,
+        _vmcaller: &mut VmCaller<Host>,
+        lhs: U256Val,
+        rhs: U64Val,
+    ) -> Result<U256Val, HostError> {
+        use ark_ff::Field;
+        let lhs = self.bn254_fr_from_u256val(lhs)?;
+        let rhs: u64 = rhs.try_into_val(self)?;
+        let res = lhs.pow(&[rhs]);
+        self.bn254_fr_to_u256val(res)
+    }
+
+    fn bn254_fr_inv(
+        &self,
+        _vmcaller: &mut VmCaller<Host>,
+        lhs: U256Val,
+    ) -> Result<U256Val, HostError> {
+        use ark_ff::Field;
+        use num_traits::Zero;
+        let lhs = self.bn254_fr_from_u256val(lhs)?;
+        if lhs.is_zero() {
+            return Err(self.err(
+                ScErrorType::Crypto,
+                ScErrorCode::InvalidInput,
+                "scalar inversion input is zero",
+                &[],
+            ));
+        }
+        let res = lhs.inverse().ok_or_else(|| {
+            self.err(
+                ScErrorType::Crypto,
+                ScErrorCode::InternalError,
+                "scalar inversion failed",
+                &[],
+            )
+        })?;
+        self.bn254_fr_to_u256val(res)
+    }
+
     impl_bls12_381_fr_arith_host_fns!(bls12_381_fr_add, fr_add_internal);
     impl_bls12_381_fr_arith_host_fns!(bls12_381_fr_sub, fr_sub_internal);
     impl_bls12_381_fr_arith_host_fns!(bls12_381_fr_mul, fr_mul_internal);
