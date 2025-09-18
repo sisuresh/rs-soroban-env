@@ -8,7 +8,7 @@ use crate::{
     events::{diagnostic::DiagnosticLevel, Events, InternalEventsBuffer},
     host_object::{HostMap, HostObject, HostVec, MuxedScAddress},
     impl_bignum_host_fns, impl_bignum_host_fns_rhs_u32, impl_bls12_381_fr_arith_host_fns,
-    impl_wrapping_obj_from_num, impl_wrapping_obj_to_num,
+    impl_bn254_fr_arith_host_fns, impl_wrapping_obj_from_num, impl_wrapping_obj_to_num,
     num::*,
     storage::Storage,
     vm::ModuleCache,
@@ -3219,6 +3219,201 @@ impl VmCallerEnv for Host {
         let lhs = self.fr_from_u256val(lhs)?;
         let res = self.fr_inv_internal(&lhs)?;
         self.fr_to_u256val(res)
+    }
+
+    fn bn254_check_g1_is_in_subgroup(
+        &self,
+        _vmcaller: &mut VmCaller<Host>,
+        pt: BytesObject,
+    ) -> Result<Bool, HostError> {
+        let pt = self.bn254_g1_affine_deserialize_from_bytesobj(pt, false)?;
+        self.bn254_check_point_is_in_subgroup(&pt)
+            .map(|b| Bool::from(b))
+    }
+
+    fn bn254_g1_add(
+        &self,
+        _vmcaller: &mut VmCaller<Host>,
+        p0: BytesObject,
+        p1: BytesObject,
+    ) -> Result<BytesObject, HostError> {
+        let p0 = self.bn254_g1_affine_deserialize_from_bytesobj(p0, false)?;
+        let p1 = self.bn254_g1_affine_deserialize_from_bytesobj(p1, false)?;
+        let res = self.bn254_g1_add_internal(p0, p1)?;
+        self.bn254_g1_projective_serialize_uncompressed(res)
+    }
+
+    fn bn254_g1_mul(
+        &self,
+        _vmcaller: &mut VmCaller<Host>,
+        p0: BytesObject,
+        sv: U256Val,
+    ) -> Result<BytesObject, HostError> {
+        let p0 = self.bn254_g1_affine_deserialize_from_bytesobj(p0, false)?;
+        let scalar = self.bn254_fr_from_u256val(sv)?;
+        let res = self.bn254_g1_mul_internal(p0, scalar)?;
+        self.bn254_g1_projective_serialize_uncompressed(res)
+    }
+
+    fn bn254_g1_msm(
+        &self,
+        _vmcaller: &mut VmCaller<Host>,
+        vp: VecObject,
+        vs: VecObject,
+    ) -> Result<BytesObject, HostError> {
+        let points = self.bn254_checked_g1_vec_from_vecobj(vp)?;
+        let scalars = self.bn254_fr_vec_from_vecobj(vs)?;
+        let res = self.bn254_msm_internal(&points, &scalars, "G1")?;
+        self.bn254_g1_projective_serialize_uncompressed(res)
+    }
+
+    fn bn254_map_fp_to_g1(
+        &self,
+        _vmcaller: &mut VmCaller<Host>,
+        fp: BytesObject,
+    ) -> Result<BytesObject, HostError> {
+        let _fp = self.bn254_fp_deserialize_from_bytesobj(fp)?;
+        // TODO: Implement proper map_to_curve once we determine the correct ark_bn254 structure
+        Err(self.err(
+            ScErrorType::Crypto,
+            ScErrorCode::InvalidInput,
+            "bn254_map_fp_to_g1 not yet implemented",
+            &[],
+        ))
+    }
+
+    fn bn254_hash_to_g1(
+        &self,
+        _vmcaller: &mut VmCaller<Host>,
+        mo: BytesObject,
+        dst: BytesObject,
+    ) -> Result<BytesObject, HostError> {
+        let _msg = self.visit_obj(mo, |bytes: &ScBytes| Ok(bytes.len()))?;
+        let _dst = self.visit_obj(dst, |bytes: &ScBytes| Ok(bytes.len()))?;
+        // TODO: Implement proper hash_to_curve once we determine the correct ark_bn254 structure
+        Err(self.err(
+            ScErrorType::Crypto,
+            ScErrorCode::InvalidInput,
+            "bn254_hash_to_g1 not yet implemented",
+            &[],
+        ))
+    }
+
+    fn bn254_check_g2_is_in_subgroup(
+        &self,
+        _vmcaller: &mut VmCaller<Host>,
+        pt: BytesObject,
+    ) -> Result<Bool, HostError> {
+        let pt = self.bn254_g2_affine_deserialize_from_bytesobj(pt, false)?;
+        self.bn254_check_point_is_in_subgroup(&pt)
+            .map(|b| Bool::from(b))
+    }
+
+    fn bn254_g2_add(
+        &self,
+        _vmcaller: &mut VmCaller<Host>,
+        p0: BytesObject,
+        p1: BytesObject,
+    ) -> Result<BytesObject, HostError> {
+        let p0 = self.bn254_g2_affine_deserialize_from_bytesobj(p0, false)?;
+        let p1 = self.bn254_g2_affine_deserialize_from_bytesobj(p1, false)?;
+        let res = self.bn254_g2_add_internal(p0, p1)?;
+        self.bn254_g2_projective_serialize_uncompressed(res)
+    }
+
+    fn bn254_g2_mul(
+        &self,
+        _vmcaller: &mut VmCaller<Host>,
+        p0: BytesObject,
+        sv: U256Val,
+    ) -> Result<BytesObject, HostError> {
+        let p0 = self.bn254_g2_affine_deserialize_from_bytesobj(p0, false)?;
+        let scalar = self.bn254_fr_from_u256val(sv)?;
+        let res = self.bn254_g2_mul_internal(p0, scalar)?;
+        self.bn254_g2_projective_serialize_uncompressed(res)
+    }
+
+    fn bn254_g2_msm(
+        &self,
+        _vmcaller: &mut VmCaller<Host>,
+        vp: VecObject,
+        vs: VecObject,
+    ) -> Result<BytesObject, HostError> {
+        let points = self.bn254_checked_g2_vec_from_vecobj(vp)?;
+        let scalars = self.bn254_fr_vec_from_vecobj(vs)?;
+        let res = self.bn254_msm_internal(&points, &scalars, "G2")?;
+        self.bn254_g2_projective_serialize_uncompressed(res)
+    }
+
+    fn bn254_map_fp2_to_g2(
+        &self,
+        _vmcaller: &mut VmCaller<Host>,
+        fp2: BytesObject,
+    ) -> Result<BytesObject, HostError> {
+        let _fp2 = self.bn254_fp2_deserialize_from_bytesobj(fp2)?;
+        // TODO: Implement proper map_to_curve once we determine the correct ark_bn254 structure
+        Err(self.err(
+            ScErrorType::Crypto,
+            ScErrorCode::InvalidInput,
+            "bn254_map_fp2_to_g2 not yet implemented",
+            &[],
+        ))
+    }
+
+    fn bn254_hash_to_g2(
+        &self,
+        _vmcaller: &mut VmCaller<Host>,
+        msg: BytesObject,
+        dst: BytesObject,
+    ) -> Result<BytesObject, HostError> {
+        let _msg = self.visit_obj(msg, |bytes: &ScBytes| Ok(bytes.len()))?;
+        let _dst = self.visit_obj(dst, |bytes: &ScBytes| Ok(bytes.len()))?;
+        // TODO: Implement proper hash_to_curve once we determine the correct ark_bn254 structure
+        Err(self.err(
+            ScErrorType::Crypto,
+            ScErrorCode::InvalidInput,
+            "bn254_hash_to_g2 not yet implemented",
+            &[],
+        ))
+    }
+
+    fn bn254_multi_pairing_check(
+        &self,
+        vmcaller: &mut VmCaller<Host>,
+        vp1: VecObject,
+        vp2: VecObject,
+    ) -> Result<Bool, HostError> {
+        let _vmcaller = vmcaller;
+        let points1 = self.bn254_checked_g1_vec_from_vecobj(vp1)?;
+        let points2 = self.bn254_checked_g2_vec_from_vecobj(vp2)?;
+        let output = self.bn254_pairing_internal(&points1, &points2)?;
+        self.bn254_check_pairing_output(&output)
+    }
+
+    impl_bn254_fr_arith_host_fns!(bn254_fr_add, bn254_fr_add_internal);
+    impl_bn254_fr_arith_host_fns!(bn254_fr_sub, bn254_fr_sub_internal);
+    impl_bn254_fr_arith_host_fns!(bn254_fr_mul, bn254_fr_mul_internal);
+
+    fn bn254_fr_pow(
+        &self,
+        _vmcaller: &mut VmCaller<Self::VmUserState>,
+        lhs: U256Val,
+        rhs: U64Val,
+    ) -> Result<U256Val, Self::Error> {
+        let lhs = self.bn254_fr_from_u256val(lhs)?;
+        let rhs: u64 = rhs.try_into_val(self)?;
+        let res = self.bn254_fr_pow_internal(&lhs, &rhs)?;
+        self.bn254_fr_to_u256val(res)
+    }
+
+    fn bn254_fr_inv(
+        &self,
+        _vmcaller: &mut VmCaller<Self::VmUserState>,
+        lhs: U256Val,
+    ) -> Result<U256Val, Self::Error> {
+        let lhs = self.bn254_fr_from_u256val(lhs)?;
+        let res = self.bn254_fr_inv_internal(&lhs)?;
+        self.bn254_fr_to_u256val(res)
     }
 
     // endregion: "crypto" module functions

@@ -1,0 +1,22 @@
+{
+  "   0 begin": "cpu:0, mem:0, prngs:-/-, objs:-/-, vm:-/-, evt:-, store:-/-, foot:-, stk:-, auth:-/-",
+  "   1 call bn254_g1_add(Bytes(obj#3), Bytes(obj#5))": "cpu:2937, mem:480, objs:-/3@9a044e9a",
+  "   2 ret bn254_g1_add -> Ok(Bytes(obj#7))": "cpu:4221, mem:640, objs:-/4@58fbb0c6",
+  "   3 call obj_cmp(Bytes(obj#3), Bytes(obj#7))": "",
+  "   4 ret obj_cmp -> Ok(0)": "cpu:4517",
+  "   5 call bn254_g1_add(Bytes(obj#11), Bytes(obj#9))": "cpu:6475, mem:960, objs:-/6@b30ef8c0",
+  "   6 ret bn254_g1_add -> Ok(Bytes(obj#13))": "cpu:7759, mem:1120, objs:-/7@48820c38",
+  "   7 call obj_cmp(Bytes(obj#9), Bytes(obj#13))": "",
+  "   8 ret obj_cmp -> Ok(0)": "cpu:8055",
+  "   9 call bn254_g1_add(Bytes(obj#15), Bytes(obj#17))": "cpu:10013, mem:1440, objs:-/9@cf96e3b7",
+  "  10 ret bn254_g1_add -> Ok(Bytes(obj#19))": "cpu:11297, mem:1600, objs:-/10@f1090471",
+  "  11 call bn254_g1_add(Bytes(obj#17), Bytes(obj#15))": "",
+  "  12 ret bn254_g1_add -> Ok(Bytes(obj#21))": "cpu:12581, mem:1760, objs:-/11@7d73d055",
+  "  13 call obj_cmp(Bytes(obj#19), Bytes(obj#21))": "",
+  "  14 ret obj_cmp -> Ok(0)": "cpu:12877",
+  "  15 call bn254_g1_add(Bytes(obj#23), Bytes(obj#25))": "cpu:14896, mem:2080, objs:-/13@18cb925c",
+  "  16 ret bn254_g1_add -> Ok(Bytes(obj#27))": "cpu:16180, mem:2240, objs:-/14@dd832848",
+  "  17 call obj_cmp(Bytes(obj#29), Bytes(obj#27))": "cpu:17159, mem:2400, objs:-/15@6a1c8ed7",
+  "  18 ret obj_cmp -> Ok(0)": "cpu:17455",
+  "  19 end": "cpu:17455, mem:2400, prngs:-/-, objs:-/15@6a1c8ed7, vm:-/-, evt:-, store:-/-, foot:-, stk:-, auth:-/-"
+}
