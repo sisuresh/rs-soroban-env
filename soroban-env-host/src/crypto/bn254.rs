@@ -525,30 +525,14 @@ impl Host {
         Ok(Projective::<P>::msm_unchecked(points, scalars))
     }
 
-    #[allow(dead_code)]
     pub(crate) fn bn254_map_to_curve<P: WBConfig>(
         &self,
         fp: <Affine<P> as AffineRepr>::BaseField,
+        ty: ContractCostType,
     ) -> Result<Affine<P>, HostError> {
-        // TODO: Add proper cost type once BN254 cost types are added to XDR
-        // self.charge_budget(cost_type, None)?;
+        self.charge_budget(ty, None)?;
 
-        // The `WBMap<g2::Config>::new()` first calls
-        // `P::ISOGENY_MAP.apply(GENERATOR)` which returns error if the result
-        // point is not on curve. This should not happen if the map constants
-        // have been correctly defined. otherwise it would be an internal error
-        // since it's a bug in the library implementation.
-        //
-        // Then it returns `WBMap`, which wraps a `SWUMap<P>` where P is the
-        // `ark_bn254::curves::g2_swu_iso::SwuIsoConfig`.
-        //
-        // Potential panic condition: `SWUMap::new().unwrap()`
-        //
-        // The `SWUMap::new()` function performs some validation on the static
-        // parameters `ZETA`, `COEFF_A`, `COEFF_B`, all of which are statically
-        // defined in `ark_bn254::curves::g1_swu_iso` and `g2_swu_iso`.
-        // Realistically this panic cannot occur, otherwise it will panic every
-        // time including during tests
+        //TODO: Do panic analysis
         let mapper = WBMap::<P>::new().map_err(|e| {
             self.err(
                 ScErrorType::Crypto,
@@ -558,20 +542,7 @@ impl Host {
             )
         })?;
 
-        // The `SWUMap::map_to_curve` function contains several panic conditions
-        // 1. assert!(!div3.is_zero())
-        // 2. gx1.sqrt().expect()
-        // 3. zeta_gx1.sqrt().expect()
-        // 4. assert!(point_on_curve.is_on_curve())
-        //
-        // While all of these should theoretically just be debug assertions that
-        // can't happen if the map parameters are correctly defined (several of
-        // these have recently been downgraded to debug_assert, e.g see
-        // https://github.com/arkworks-rs/algebra/pull/659#discussion_r1450808159),
-        // we cannot guaruantee with 100% confidence these panics will never
-        // happen.
-        //
-        // Otherwise, this function should never Err.
+        //TODO: Do panic analysis
         mapper.map_to_curve(fp).map_err(|e| {
             self.err(
                 ScErrorType::Crypto,

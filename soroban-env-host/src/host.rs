@@ -3262,14 +3262,9 @@ impl VmCallerEnv for Host {
         _vmcaller: &mut VmCaller<Host>,
         fp: BytesObject,
     ) -> Result<BytesObject, HostError> {
-        let _fp = self.bn254_fp_deserialize_from_bytesobj(fp)?;
-        // TODO: Implement proper map_to_curve once we determine the correct ark_bn254 structure
-        Err(self.err(
-            ScErrorType::Crypto,
-            ScErrorCode::InvalidInput,
-            "bn254_map_fp_to_g1 not yet implemented",
-            &[],
-        ))
+        let fp = self.bn254_fp_deserialize_from_bytesobj(fp)?;
+        let g1 = self.bn254_map_to_curve(fp, ContractCostType::Bn254MapFpToG1)?;
+        self.bn254_g1_affine_serialize_uncompressed(&g1)
     }
 
     fn bn254_hash_to_g1(
