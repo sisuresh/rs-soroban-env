@@ -515,6 +515,30 @@ fn total_amount_charged_from_random_inputs() -> Result<(), HostError> {
         Bls12381FrMul                      1              None           332            0              332                 0                   0                   0                   
         Bls12381FrPow                      1              Some(1)        1273           1              691                 74558               0                   128                 
         Bls12381FrInv                      1              None           35421          0              35421               0                   0                   0                   
+        Bn254EncodeFp                      0              None           0              0              308                 0                   0                   0                   
+        Bn254DecodeFp                      0              None           0              0              308                 0                   0                   0                   
+        Bn254G1CheckPointOnCurve           0              None           0              0              72                  0                   0                   0                   
+        Bn254G2CheckPointOnCurve           0              None           0              0              196                 0                   0                   0                   
+        Bn254G2CheckPointInSubgroup        0              None           0              0              3091                0                   0                   0                   
+        Bn254G1ProjectiveToAffine          0              None           0              0              384                 0                   0                   0                   
+        Bn254G2ProjectiveToAffine          0              None           0              0              768                 0                   0                   0                   
+        Bn254G1Add                         0              None           0              0              540                 0                   0                   0                   
+        Bn254G1Mul                         0              None           0              0              11969               0                   0                   0                   
+        Bn254G1Msm                         0              Some(0)        0              0              3593                8246                0                   128                 
+        Bn254MapFpToG1                     0              None           0              0              2499                0                   0                   0                   
+        Bn254HashToG1                      0              Some(0)        0              0              5280                30                  0                   128                 
+        Bn254G2Add                         0              None           0              0              1080                0                   0                   0                   
+        Bn254G2Mul                         0              None           0              0              23938               0                   0                   0                   
+        Bn254G2Msm                         0              Some(0)        0              0              7186                16492               0                   128                 
+        Bn254MapFp2ToG2                    0              None           0              0              4998                0                   0                   0                   
+        Bn254HashToG2                      0              Some(0)        0              0              10560               60                  0                   128                 
+        Bn254Pairing                       0              Some(0)        0              0              97142               67406               0                   128                 
+        Bn254FrFromU256                    0              None           0              0              101                 0                   0                   0                   
+        Bn254FrToU256                      0              None           0              0              136                 0                   0                   0                   
+        Bn254FrAddSub                      0              None           0              0              67                  0                   0                   0                   
+        Bn254FrMul                         0              None           0              0              72                  0                   0                   0                   
+        Bn254FrPow                         0              Some(0)        0              0              659                 74558               0                   128                 
+        Bn254FrInv                         0              None           0              0              35421               0                   0                   0                   
         ===============================================================================================================================================================================
         Internal details (diagnostics info, does not affect fees) 
         Total # times meter was called: 70

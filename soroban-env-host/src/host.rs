@@ -3221,16 +3221,6 @@ impl VmCallerEnv for Host {
         self.fr_to_u256val(res)
     }
 
-    fn bn254_check_g1_is_in_subgroup(
-        &self,
-        _vmcaller: &mut VmCaller<Host>,
-        pt: BytesObject,
-    ) -> Result<Bool, HostError> {
-        let pt = self.bn254_g1_affine_deserialize_from_bytesobj(pt, false)?;
-        self.bn254_check_point_is_in_subgroup(&pt)
-            .map(|b| Bool::from(b))
-    }
-
     fn bn254_g1_add(
         &self,
         _vmcaller: &mut VmCaller<Host>,

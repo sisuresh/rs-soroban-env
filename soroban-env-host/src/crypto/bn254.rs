@@ -1,4 +1,5 @@
 use crate::{
+    budget::AsBudget,
     host_object::HostVec,
     xdr::{ContractCostType, ScBytes, ScErrorCode, ScErrorType},
     Bool, BytesObject, ConversionError, Env, ErrorHandler, Host, HostError, TryFromVal, U256Object,
@@ -65,12 +66,13 @@ impl Host {
                 ],
             ));
         }
-        // TODO: Add proper cost type once BN254 cost types are added to XDR
-        // self.as_budget().bulk_charge(
-        //     ContractCostType::Bn254DecodeFp,
-        //     units_of_fp::<EXPECTED_SIZE>(),
-        //     None,
-        // )?;
+
+        self.as_budget().bulk_charge(
+            ContractCostType::Bn254DecodeFp,
+            units_of_fp::<EXPECTED_SIZE>(),
+            None,
+        )?;
+
         // validation turned off here to isolate the cost of serialization.
         // proper validation has to be performed outside of this function
         T::deserialize_with_mode(slice, Compress::No, Validate::No).map_err(|_e| {
@@ -106,12 +108,12 @@ impl Host {
                 ],
             ));
         }
-        // TODO: Add proper cost type once BN254 cost types are added to XDR
-        // self.as_budget().bulk_charge(
-        //     ContractCostType::Bn254EncodeFp,
-        //     units_of_fp::<EXPECTED_SIZE>(),
-        //     None,
-        // )?;
+
+        self.as_budget().bulk_charge(
+            ContractCostType::Bn254EncodeFp,
+            units_of_fp::<EXPECTED_SIZE>(),
+            None,
+        )?;
         element.serialize_uncompressed(buf).map_err(|_e| {
             self.err(
                 ScErrorType::Crypto,
@@ -240,8 +242,7 @@ impl Host {
         &self,
         g1: G1Projective,
     ) -> Result<G1Affine, HostError> {
-        // TODO: Add proper cost type once BN254 cost types are added to XDR
-        // self.charge_budget(ContractCostType::Bn254G1ProjectiveToAffine, None)?;
+        self.charge_budget(ContractCostType::Bn254G1ProjectiveToAffine, None)?;
         Ok(g1.into_affine())
     }
 

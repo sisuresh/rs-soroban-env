@@ -1,12 +1,12 @@
 {
   "   0 begin": "cpu:0, mem:0, prngs:-/-, objs:-/-, vm:-/-, evt:-, store:-/-, foot:-, stk:-, auth:-/-",
-  "   1 call bytes_new_from_slice(65)": "cpu:1040, mem:160, objs:-/1@9a37ffbe",
-  "   2 ret bytes_new_from_slice -> Ok(Bytes(obj#3))": "cpu:2019, mem:321, objs:-/2@9cb39e62",
-  "   3 call bytes_new_from_slice(63)": "cpu:3120, mem:481, objs:-/3@81bcbcd7",
-  "   4 ret bytes_new_from_slice -> Ok(Bytes(obj#7))": "cpu:4097, mem:640, objs:-/4@be9c4f8a",
-  "   5 call bytes_new_from_slice(64)": "cpu:5198, mem:800, objs:-/5@d5bfa4df",
-  "   6 ret bytes_new_from_slice -> Ok(Bytes(obj#11))": "cpu:6177, mem:960, objs:-/6@58d3f161",
-  "   7 call bytes_new_from_slice(64)": "cpu:6238",
-  "   8 ret bytes_new_from_slice -> Ok(Bytes(obj#13))": "cpu:7217, mem:1120, objs:-/7@64fe0aa5",
-  "   9 end": "cpu:8318, mem:1280, prngs:-/-, objs:-/8@6b51b06b, vm:-/-, evt:-, store:-/-, foot:-, stk:-, auth:-/-"
+  "   1 call bytes_new_from_slice(65)": "cpu:1656, mem:160, objs:-/1@9a37ffbe",
+  "   2 ret bytes_new_from_slice -> Ok(Bytes(obj#3))": "cpu:2635, mem:321, objs:-/2@9cb39e62",
+  "   3 call bytes_new_from_slice(63)": "cpu:4352, mem:481, objs:-/3@81bcbcd7",
+  "   4 ret bytes_new_from_slice -> Ok(Bytes(obj#7))": "cpu:5329, mem:640, objs:-/4@be9c4f8a",
+  "   5 call bytes_new_from_slice(64)": "cpu:7046, mem:800, objs:-/5@d5bfa4df",
+  "   6 ret bytes_new_from_slice -> Ok(Bytes(obj#11))": "cpu:8025, mem:960, objs:-/6@58d3f161",
+  "   7 call bytes_new_from_slice(64)": "cpu:8702",
+  "   8 ret bytes_new_from_slice -> Ok(Bytes(obj#13))": "cpu:9681, mem:1120, objs:-/7@64fe0aa5",
+  "   9 end": "cpu:12630, mem:1280, prngs:-/-, objs:-/8@6b51b06b, vm:-/-, evt:-, store:-/-, foot:-, stk:-, auth:-/-"
 }
