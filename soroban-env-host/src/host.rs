@@ -3257,33 +3257,6 @@ impl VmCallerEnv for Host {
         self.bn254_g1_projective_serialize_uncompressed(res)
     }
 
-    fn bn254_map_fp_to_g1(
-        &self,
-        _vmcaller: &mut VmCaller<Host>,
-        fp: BytesObject,
-    ) -> Result<BytesObject, HostError> {
-        let fp = self.bn254_fp_deserialize_from_bytesobj(fp)?;
-        let g1 = self.bn254_map_to_curve(fp, ContractCostType::Bn254MapFpToG1)?;
-        self.bn254_g1_affine_serialize_uncompressed(&g1)
-    }
-
-    fn bn254_hash_to_g1(
-        &self,
-        _vmcaller: &mut VmCaller<Host>,
-        mo: BytesObject,
-        dst: BytesObject,
-    ) -> Result<BytesObject, HostError> {
-        let _msg = self.visit_obj(mo, |bytes: &ScBytes| Ok(bytes.len()))?;
-        let _dst = self.visit_obj(dst, |bytes: &ScBytes| Ok(bytes.len()))?;
-        // TODO: Implement proper hash_to_curve once we determine the correct ark_bn254 structure
-        Err(self.err(
-            ScErrorType::Crypto,
-            ScErrorCode::InvalidInput,
-            "bn254_hash_to_g1 not yet implemented",
-            &[],
-        ))
-    }
-
     fn bn254_check_g2_is_in_subgroup(
         &self,
         _vmcaller: &mut VmCaller<Host>,
@@ -3328,38 +3301,6 @@ impl VmCallerEnv for Host {
         let scalars = self.bn254_fr_vec_from_vecobj(vs)?;
         let res = self.bn254_msm_internal(&points, &scalars, "G2")?;
         self.bn254_g2_projective_serialize_uncompressed(res)
-    }
-
-    fn bn254_map_fp2_to_g2(
-        &self,
-        _vmcaller: &mut VmCaller<Host>,
-        fp2: BytesObject,
-    ) -> Result<BytesObject, HostError> {
-        let _fp2 = self.bn254_fp2_deserialize_from_bytesobj(fp2)?;
-        // TODO: Implement proper map_to_curve once we determine the correct ark_bn254 structure
-        Err(self.err(
-            ScErrorType::Crypto,
-            ScErrorCode::InvalidInput,
-            "bn254_map_fp2_to_g2 not yet implemented",
-            &[],
-        ))
-    }
-
-    fn bn254_hash_to_g2(
-        &self,
-        _vmcaller: &mut VmCaller<Host>,
-        msg: BytesObject,
-        dst: BytesObject,
-    ) -> Result<BytesObject, HostError> {
-        let _msg = self.visit_obj(msg, |bytes: &ScBytes| Ok(bytes.len()))?;
-        let _dst = self.visit_obj(dst, |bytes: &ScBytes| Ok(bytes.len()))?;
-        // TODO: Implement proper hash_to_curve once we determine the correct ark_bn254 structure
-        Err(self.err(
-            ScErrorType::Crypto,
-            ScErrorCode::InvalidInput,
-            "bn254_hash_to_g2 not yet implemented",
-            &[],
-        ))
     }
 
     fn bn254_multi_pairing_check(

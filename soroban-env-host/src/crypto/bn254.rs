@@ -10,20 +10,14 @@ use ark_bn254::{
     G1Projective, G2Affine, G2Projective,
 };
 use ark_ec::{
-    hashing::{
-        curve_maps::wb::{WBConfig, WBMap},
-        map_to_curve_hasher::{MapToCurve, MapToCurveBasedHasher},
-        HashToCurve,
-    },
     pairing::{Pairing, PairingOutput},
     scalar_mul::variable_base::VariableBaseMSM,
     short_weierstrass::{Affine, Projective, SWCurveConfig},
-    AffineRepr, CurveConfig, CurveGroup,
+    CurveConfig, CurveGroup,
 };
-use ark_ff::{field_hashers::DefaultFieldHasher, BigInteger, Field, PrimeField};
+use ark_ff::{BigInteger, Field, PrimeField};
 use ark_serialize::{CanonicalDeserialize, CanonicalSerialize, Compress, Validate};
 use num_traits::Zero;
-use sha2::Sha256;
 use std::cmp::Ordering;
 use std::ops::{Add, AddAssign, Mul, MulAssign, SubAssign};
 
@@ -332,6 +326,7 @@ impl Host {
         self.map_err(U256Val::try_from_val(self, &u))
     }
 
+    #[allow(dead_code)]
     pub(crate) fn bn254_field_element_deserialize<
         const EXPECTED_SIZE: usize,
         T: CanonicalDeserialize,
@@ -386,6 +381,7 @@ impl Host {
         })
     }
 
+    #[allow(dead_code)]
     pub(crate) fn bn254_fp_deserialize_from_bytesobj(
         &self,
         bo: BytesObject,
@@ -393,6 +389,7 @@ impl Host {
         self.bn254_field_element_deserialize::<FP_SERIALIZED_SIZE, Fq>(bo, "Fp")
     }
 
+    #[allow(dead_code)]
     pub(crate) fn bn254_fp2_deserialize_from_bytesobj(
         &self,
         bo: BytesObject,
@@ -523,110 +520,6 @@ impl Host {
         // under branch negation is cheap.
         // the unchecked version just skips the length equal check
         Ok(Projective::<P>::msm_unchecked(points, scalars))
-    }
-
-    pub(crate) fn bn254_map_to_curve<P: WBConfig>(
-        &self,
-        fp: <Affine<P> as AffineRepr>::BaseField,
-        ty: ContractCostType,
-    ) -> Result<Affine<P>, HostError> {
-        self.charge_budget(ty, None)?;
-
-        //TODO: Do panic analysis
-        let mapper = WBMap::<P>::new().map_err(|e| {
-            self.err(
-                ScErrorType::Crypto,
-                ScErrorCode::InternalError,
-                format!("hash-to-curve error {e}").as_str(),
-                &[],
-            )
-        })?;
-
-        //TODO: Do panic analysis
-        mapper.map_to_curve(fp).map_err(|e| {
-            self.err(
-                ScErrorType::Crypto,
-                ScErrorCode::InternalError,
-                format!("hash-to-curve error {e}").as_str(),
-                &[],
-            )
-        })
-    }
-
-    #[allow(dead_code)]
-    pub(crate) fn bn254_hash_to_curve<P: WBConfig>(
-        &self,
-        domain: &[u8],
-        msg: &[u8],
-    ) -> Result<Affine<P>, HostError> {
-        // TODO: Add proper cost type once BN254 cost types are added to XDR
-        // self.charge_budget(cost_type, Some(msg.len() as u64))?;
-        // check dst requirements
-        let dst_len = domain.len();
-        if dst_len == 0 || dst_len > 255 {
-            return Err(self.err(
-                ScErrorType::Crypto,
-                ScErrorCode::InvalidInput,
-                format!("hash_to_curve: invalid input dst length {dst_len}, must be > 0 and < 256")
-                    .as_str(),
-                &[],
-            ));
-        }
-
-        // The `new` function here constructs a DefaultFieldHasher and a WBMap.
-        // - The DefaultFieldHasher::new() function creates an ExpanderXmd with
-        // Sha256. This cannot fail or panic.
-        // - Construction of WBMap follows the exact same analysis as map_to_curve
-        // function earlier.
-        // This function cannot realistically produce an error or panic.
-        let mapper =
-            MapToCurveBasedHasher::<Projective<P>, DefaultFieldHasher<Sha256, 128>, WBMap<P>>::new(
-                domain,
-            )
-            .map_err(|e| {
-                self.err(
-                    ScErrorType::Crypto,
-                    ScErrorCode::InternalError,
-                    format!("hash-to-curve error {e}").as_str(),
-                    &[],
-                )
-            })?;
-
-        // `ark_ec::hashing::map_to_curve_hasher::MapToCurveBasedHasher::hash`
-        // contains the following calls
-        // - `DefaultFieldHasher::hash_to_field`
-        // - `SWUMap::map_to_curve`
-        // - `clear_cofactor`. This cannot fail or panic.
-        //
-        // `hash_to_field` calls the ExpanderXmd::expand function, there are two
-        // assertions on the length of bytes produced by the hash function. Both
-        // of these cannot happen because the output size can be computed
-        // analytically. Let's use G2:
-        // - `block_size = 256 (Fq bit size) + 128 (security padding) / 8 = 48`
-        // - `len_in_bytes = 2 (number of elements to produce) *  2 (extention
-        //   degree of Fq2) * 48 (block_size) = 192`
-        // - `ell = 192 (len_in_bytes) / 32 (sha256 output size) = 6`
-        //
-        // # Assertion #1. ell <= 255, which is saying the expander cannot expand
-        // up to a certain length. in our case ell == 6.
-        // # Assertion #2. len_in_bytes < 2^16, which is clearly true as well.
-        //
-        // The rest is just hashing, dividing bytes into element size, and
-        // producing field elements from bytes. None of these can panic or
-        // error.
-        //
-        // The only panic conditions we cannot 100% exclude comes from
-        // `map_to_curve`, see previous analysis.
-        //
-        // This function should not Err.
-        mapper.hash(msg.as_ref()).map_err(|e| {
-            self.err(
-                ScErrorType::Crypto,
-                ScErrorCode::InternalError,
-                format!("hash-to-curve error {e}").as_str(),
-                &[],
-            )
-        })
     }
 
     pub(crate) fn bn254_pairing_internal(
