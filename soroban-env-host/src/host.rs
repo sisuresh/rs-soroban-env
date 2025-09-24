@@ -3245,54 +3245,6 @@ impl VmCallerEnv for Host {
         self.bn254_g1_projective_serialize_uncompressed(res)
     }
 
-    fn bn254_g1_msm(
-        &self,
-        _vmcaller: &mut VmCaller<Host>,
-        vp: VecObject,
-        vs: VecObject,
-    ) -> Result<BytesObject, HostError> {
-        let points = self.bn254_checked_g1_vec_from_vecobj(vp)?;
-        let scalars = self.bn254_fr_vec_from_vecobj(vs)?;
-        let res = self.bn254_msm_internal(&points, &scalars, "G1")?;
-        self.bn254_g1_projective_serialize_uncompressed(res)
-    }
-
-    fn bn254_g2_add(
-        &self,
-        _vmcaller: &mut VmCaller<Host>,
-        p0: BytesObject,
-        p1: BytesObject,
-    ) -> Result<BytesObject, HostError> {
-        let p0 = self.bn254_g2_affine_deserialize_from_bytesobj(p0, false)?;
-        let p1 = self.bn254_g2_affine_deserialize_from_bytesobj(p1, false)?;
-        let res = self.bn254_g2_add_internal(p0, p1)?;
-        self.bn254_g2_projective_serialize_uncompressed(res)
-    }
-
-    fn bn254_g2_mul(
-        &self,
-        _vmcaller: &mut VmCaller<Host>,
-        p0: BytesObject,
-        sv: U256Val,
-    ) -> Result<BytesObject, HostError> {
-        let p0 = self.bn254_g2_affine_deserialize_from_bytesobj(p0, false)?;
-        let scalar = self.bn254_fr_from_u256val(sv)?;
-        let res = self.bn254_g2_mul_internal(p0, scalar)?;
-        self.bn254_g2_projective_serialize_uncompressed(res)
-    }
-
-    fn bn254_g2_msm(
-        &self,
-        _vmcaller: &mut VmCaller<Host>,
-        vp: VecObject,
-        vs: VecObject,
-    ) -> Result<BytesObject, HostError> {
-        let points = self.bn254_checked_g2_vec_from_vecobj(vp)?;
-        let scalars = self.bn254_fr_vec_from_vecobj(vs)?;
-        let res = self.bn254_msm_internal(&points, &scalars, "G2")?;
-        self.bn254_g2_projective_serialize_uncompressed(res)
-    }
-
     fn bn254_multi_pairing_check(
         &self,
         vmcaller: &mut VmCaller<Host>,

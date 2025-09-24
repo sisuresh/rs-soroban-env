@@ -6,14 +6,13 @@ use crate::{
     VecObject, U256,
 };
 use ark_bn254::{
-    g1::Config as G1Config, g2::Config as G2Config, Bn254, Fq, Fq12, Fq2, Fr, G1Affine,
-    G1Projective, G2Affine, G2Projective,
+    g1::Config as G1Config, g2::Config as G2Config, Bn254, Fq12, Fr, G1Affine, G1Projective,
+    G2Affine,
 };
 use ark_ec::{
     pairing::{Pairing, PairingOutput},
-    scalar_mul::variable_base::VariableBaseMSM,
-    short_weierstrass::{Affine, Projective, SWCurveConfig},
-    CurveConfig, CurveGroup,
+    short_weierstrass::{Affine, SWCurveConfig},
+    CurveGroup,
 };
 use ark_ff::{Field, PrimeField};
 use ark_serialize::{CanonicalDeserialize, CanonicalSerialize, Compress, Validate};
@@ -22,11 +21,9 @@ use std::ops::{Add, Mul};
 
 pub(crate) const FP_SERIALIZED_SIZE: usize = 32;
 pub(crate) const FP2_SERIALIZED_SIZE: usize = FP_SERIALIZED_SIZE * 2;
-#[allow(dead_code)]
 pub(crate) const FP12_SERIALIZED_SIZE: usize = FP_SERIALIZED_SIZE * 12;
 pub(crate) const G1_SERIALIZED_SIZE: usize = FP_SERIALIZED_SIZE * 2;
 pub(crate) const G2_SERIALIZED_SIZE: usize = FP2_SERIALIZED_SIZE * 2;
-pub(crate) const FR_SERIALIZED_SIZE: usize = 32;
 
 #[inline(always)]
 #[allow(dead_code)]
@@ -68,7 +65,7 @@ impl Host {
 
         // validation turned off here to isolate the cost of serialization.
         // proper validation has to be performed outside of this function
-        T::deserialize_with_mode(slice, Compress::Yes, Validate::No).map_err(|_e| {
+        T::deserialize_with_mode(slice, Compress::No, Validate::No).map_err(|_e| {
             self.err(
                 ScErrorType::Crypto,
                 ScErrorCode::InvalidInput,
@@ -169,28 +166,7 @@ impl Host {
     ) -> Result<Affine<P>, HostError> {
         let pt: Affine<P> = self.visit_obj(bo, |bytes: &ScBytes| {
             self.bn254_validate_point_encoding::<EXPECTED_SIZE>(&bytes, tag)?;
-            // `CanonicalDeserialize` of `Affine<P>` calls into
-            // `P::deserialize_with_mode`, where `P` is `arc_bn254::{g1,g2}::Config`, the
-            // core logic is in `arc_bn254::curves::util::read_{g1,g2}_uncompressed`.
-            //
-            // The `arc_bn254` lib already expects the input to be serialized in
-            // big-endian order (aligning with the common standard and contrary
-            // to ark::serialize's convention),
-            //
-            // i.e. `input = be_bytes(X) || be_bytes(Y)` and the
-            // most-significant three bits of X are flags:
-            //
-            // `bits(Affine) = [compression_flag, infinity_flag, sort_flag, ..remaining X_bits.., ..Y_bits..]`
-            //
-            // For `G1Affine`, each coordinate is an `Fq` that is 32 bytes.
-            //
-            // For `G2Affine`, each coordinate is an `Fq2` which contains two `Fq`,
-            // i.e. `(c1: Fq, c0: Fq)` see `field_element_deserialize` for more details.
-            //
-            // Internally when deserializing `Fq`, the flag bits are masked off
-            // to get `X: Fq`. The Y however, does not have the top bits masked off
-            // so it is possible for Y to exceed 254 bits. Internally `Fq` deserialization
-            // makes sure any value >= prime modulus results in an error.
+
             self.bn254_deserialize_uncompressed_no_validate::<EXPECTED_SIZE, _>(
                 bytes.as_slice(),
                 tag,
@@ -223,14 +199,6 @@ impl Host {
         self.bn254_affine_deserialize::<G1_SERIALIZED_SIZE, G1Config>(bo, subgroup_check, "G1")
     }
 
-    pub(crate) fn bn254_g2_affine_deserialize_from_bytesobj(
-        &self,
-        bo: BytesObject,
-        subgroup_check: bool,
-    ) -> Result<G2Affine, HostError> {
-        self.bn254_affine_deserialize::<G2_SERIALIZED_SIZE, G2Config>(bo, subgroup_check, "G2")
-    }
-
     pub(crate) fn bn254_g1_projective_into_affine(
         &self,
         g1: G1Projective,
@@ -258,42 +226,6 @@ impl Host {
         self.bn254_g1_affine_serialize_uncompressed(&g1_affine)
     }
 
-    pub(crate) fn bn254_g2_projective_into_affine(
-        &self,
-        g2: G2Projective,
-    ) -> Result<G2Affine, HostError> {
-        // TODO: Add proper cost type once BN254 cost types are added to XDR
-        // self.charge_budget(ContractCostType::Bn254G2ProjectiveToAffine, None)?;
-        Ok(g2.into_affine())
-    }
-
-    pub(crate) fn bn254_g2_affine_serialize_uncompressed(
-        &self,
-        g2: &G2Affine,
-    ) -> Result<BytesObject, HostError> {
-        let mut buf = [0; G2_SERIALIZED_SIZE];
-        // `CanonicalSerialization of Affine<P>` where `P` is `ark_bn254::curves::g2::Config`,
-        // calls into `P::serialize_with_mode`.
-        //
-        // The output is in the following format:
-        // `be_bytes(X_c1) || be_bytes(X_c0) || be_bytes(Y_c1) || be_bytes(Y_c0)`
-        //
-        // The most significant three bits of `X_c1` encodes the flags, i.e.
-        // `bits(X_c1) = [compression_flag, infinity_flag, sort_flag, bit_3, .. bit_255]`
-        //
-        // This aligns with the standard serialization format
-        self.bn254_serialize_uncompressed_into_slice::<G2_SERIALIZED_SIZE, _>(g2, &mut buf, "G2")?;
-        self.add_host_object(self.scbytes_from_slice(&buf)?)
-    }
-
-    pub(crate) fn bn254_g2_projective_serialize_uncompressed(
-        &self,
-        g2: G2Projective,
-    ) -> Result<BytesObject, HostError> {
-        let g2_affine = self.bn254_g2_projective_into_affine(g2)?;
-        self.bn254_g2_affine_serialize_uncompressed(&g2_affine)
-    }
-
     pub(crate) fn bn254_fr_from_u256val(&self, sv: U256Val) -> Result<Fr, HostError> {
         self.charge_budget(ContractCostType::Bn254FrFromU256, None)?;
         let fr = if let Ok(small) = U256Small::try_from(sv) {
@@ -305,95 +237,6 @@ impl Host {
             })?
         };
         Ok(fr)
-    }
-
-    #[allow(dead_code)]
-    pub(crate) fn bn254_field_element_deserialize<
-        const EXPECTED_SIZE: usize,
-        T: CanonicalDeserialize,
-    >(
-        &self,
-        bo: BytesObject,
-        tag: &str,
-    ) -> Result<T, HostError> {
-        self.visit_obj(bo, |bytes: &ScBytes| {
-            if bytes.len() != EXPECTED_SIZE {
-                return Err(self.err(
-                    ScErrorType::Crypto,
-                    ScErrorCode::InvalidInput,
-                    format!(
-                        "bn254 field element {}: invalid input length to deserialize",
-                        tag
-                    )
-                    .as_str(),
-                    &[
-                        Val::from_u32(bytes.len() as u32).into(),
-                        Val::from_u32(EXPECTED_SIZE as u32).into(),
-                    ],
-                ));
-            }
-            // TODO: Add proper cost type once BN254 cost types are added to XDR
-            // self.charge_budget(ContractCostType::MemCpy, Some(EXPECTED_SIZE as u64))?;
-            let mut buf = [0u8; EXPECTED_SIZE];
-            buf.copy_from_slice(bytes);
-            buf.reverse();
-
-            // The field element here an either be a Fq<P, N=4> (base field
-            // element) or QuadExtField<P> (quadratic extension)
-            //
-            // - `CanonicalDeserialize for Fq<P, N>` assumes input bytes in
-            // little-endian order, with the highest (right-most) bits being
-            // empty flags. This is reverse of our rule, which assumes
-            // big-endian order with the highest (left-most) bits for flags.
-            //
-            // - `CanonicalDeserialize for QuadExtField<P>` reads the first
-            // chunk, deserialize it into `Fq` as `c0`. Then repeat for `c1`. The
-            // deserialization for `Fq` follows same rules as above, where the
-            // bytes are expected in little-endian, with the highest bits being
-            // empty flags. There is no check involved. This is entirely
-            // reversed from our input format: `be_bytes(c1) || be_bytes(c0)` from
-            // the standard serialization format
-            //
-            // In either case, we just need to reverse the input bytes before
-            // passing them in. There is no other check for `Fq` besides the
-            // length check, internally it makes sure `Fq` is valid integer
-            // modulo `q` (the prime modulus)
-            self.bn254_deserialize_uncompressed_no_validate::<EXPECTED_SIZE, _>(&buf, tag)
-        })
-    }
-
-    #[allow(dead_code)]
-    pub(crate) fn bn254_fp_deserialize_from_bytesobj(
-        &self,
-        bo: BytesObject,
-    ) -> Result<Fq, HostError> {
-        self.bn254_field_element_deserialize::<FP_SERIALIZED_SIZE, Fq>(bo, "Fp")
-    }
-
-    #[allow(dead_code)]
-    pub(crate) fn bn254_fp2_deserialize_from_bytesobj(
-        &self,
-        bo: BytesObject,
-    ) -> Result<Fq2, HostError> {
-        self.bn254_field_element_deserialize::<FP2_SERIALIZED_SIZE, Fq2>(bo, "Fp2")
-    }
-
-    pub(crate) fn bn254_fr_vec_from_vecobj(&self, vs: VecObject) -> Result<Vec<Fr>, HostError> {
-        let len: u32 = self.vec_len(vs)?.into();
-        let mut scalars: Vec<Fr> = vec![];
-        self.charge_budget(
-            ContractCostType::MemAlloc,
-            Some(len as u64 * FR_SERIALIZED_SIZE as u64),
-        )?;
-        scalars.reserve(len as usize);
-        let _ = self.visit_obj(vs, |vs: &HostVec| {
-            for s in vs.iter() {
-                let ss = self.bn254_fr_from_u256val(U256Val::try_from_val(self, s)?)?;
-                scalars.push(ss);
-            }
-            Ok(())
-        })?;
-        Ok(scalars)
     }
 
     pub(crate) fn bn254_g1_add_internal(
@@ -446,6 +289,7 @@ impl Host {
         &self,
         vp: VecObject,
     ) -> Result<Vec<G1Affine>, HostError> {
+        //TODO: Add cost type parameters
         self.bn254_affine_vec_from_vecobj::<G1_SERIALIZED_SIZE, G1Config>(vp, true, "G1")
     }
 
@@ -453,54 +297,8 @@ impl Host {
         &self,
         vp: VecObject,
     ) -> Result<Vec<G2Affine>, HostError> {
+        //TODO: Add cost type parameters
         self.bn254_affine_vec_from_vecobj::<G2_SERIALIZED_SIZE, G2Config>(vp, true, "G2")
-    }
-
-    pub(crate) fn bn254_g2_add_internal(
-        &self,
-        p0: G2Affine,
-        p1: G2Affine,
-    ) -> Result<G2Projective, HostError> {
-        // TODO: Add proper cost type once BN254 cost types are added to XDR
-        // self.charge_budget(ContractCostType::Bn254G2Add, None)?;
-        Ok(p0.add(p1))
-    }
-
-    pub(crate) fn bn254_g2_mul_internal(
-        &self,
-        p0: G2Affine,
-        scalar: Fr,
-    ) -> Result<G2Projective, HostError> {
-        // TODO: Add proper cost type once BN254 cost types are added to XDR
-        // self.charge_budget(ContractCostType::Bn254G2Mul, None)?;
-        Ok(p0.mul(scalar))
-    }
-
-    pub(crate) fn bn254_msm_internal<P: SWCurveConfig>(
-        &self,
-        points: &[Affine<P>],
-        scalars: &[<P as CurveConfig>::ScalarField],
-        tag: &str,
-    ) -> Result<Projective<P>, HostError> {
-        // TODO: Add proper cost type once BN254 cost types are added to XDR
-        // self.charge_budget(*ty, Some(points.len() as u64))?;
-        if points.len() != scalars.len() || points.len() == 0 {
-            return Err(self.err(
-                ScErrorType::Crypto,
-                ScErrorCode::InvalidInput,
-                format!(
-                    "{tag} msm: invalid input vector lengths ({}, {})",
-                    points.len(),
-                    scalars.len()
-                )
-                .as_str(),
-                &[],
-            ));
-        }
-        // The actual logic happens inside msm_bigint_wnaf (ark_ec/variable_base/mod.rs)
-        // under branch negation is cheap.
-        // the unchecked version just skips the length equal check
-        Ok(Projective::<P>::msm_unchecked(points, scalars))
     }
 
     pub(crate) fn bn254_pairing_internal(
