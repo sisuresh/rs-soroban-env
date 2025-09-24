@@ -2,8 +2,8 @@ use crate::{
     budget::AsBudget,
     host_object::HostVec,
     xdr::{ContractCostType, ScBytes, ScErrorCode, ScErrorType},
-    Bool, BytesObject, ConversionError, Env, ErrorHandler, Host, HostError, TryFromVal, U256Object,
-    U256Small, U256Val, Val, VecObject, U256,
+    Bool, BytesObject, Env, Host, HostError, TryFromVal, U256Object, U256Small, U256Val, Val,
+    VecObject, U256,
 };
 use ark_bn254::{
     g1::Config as G1Config, g2::Config as G2Config, Bn254, Fq, Fq12, Fq2, Fr, G1Affine,
@@ -15,11 +15,10 @@ use ark_ec::{
     short_weierstrass::{Affine, Projective, SWCurveConfig},
     CurveConfig, CurveGroup,
 };
-use ark_ff::{BigInteger, Field, PrimeField};
+use ark_ff::{Field, PrimeField};
 use ark_serialize::{CanonicalDeserialize, CanonicalSerialize, Compress, Validate};
-use num_traits::Zero;
 use std::cmp::Ordering;
-use std::ops::{Add, AddAssign, Mul, MulAssign, SubAssign};
+use std::ops::{Add, Mul};
 
 pub(crate) const FP_SERIALIZED_SIZE: usize = 32;
 pub(crate) const FP2_SERIALIZED_SIZE: usize = FP_SERIALIZED_SIZE * 2;
@@ -69,7 +68,7 @@ impl Host {
 
         // validation turned off here to isolate the cost of serialization.
         // proper validation has to be performed outside of this function
-        T::deserialize_with_mode(slice, Compress::No, Validate::No).map_err(|_e| {
+        T::deserialize_with_mode(slice, Compress::Yes, Validate::No).map_err(|_e| {
             self.err(
                 ScErrorType::Crypto,
                 ScErrorCode::InvalidInput,
@@ -296,8 +295,7 @@ impl Host {
     }
 
     pub(crate) fn bn254_fr_from_u256val(&self, sv: U256Val) -> Result<Fr, HostError> {
-        // TODO: Add proper cost type once BN254 cost types are added to XDR
-        // self.charge_budget(ContractCostType::Bn254FrFromU256, None)?;
+        self.charge_budget(ContractCostType::Bn254FrFromU256, None)?;
         let fr = if let Ok(small) = U256Small::try_from(sv) {
             Fr::from_le_bytes_mod_order(&u64::from(small).to_le_bytes())
         } else {
@@ -307,23 +305,6 @@ impl Host {
             })?
         };
         Ok(fr)
-    }
-
-    pub(crate) fn bn254_fr_to_u256val(&self, scalar: Fr) -> Result<U256Val, HostError> {
-        // TODO: Add proper cost type once BN254 cost types are added to XDR
-        // self.charge_budget(ContractCostType::Bn254FrToU256, None)?;
-        // The `into_bigint` carries the majority of the cost. It performs the
-        // Montgomery reduction on the internal representation, which is doing a
-        // number of wrapping arithmetics on each u64 word (`Fr` contains 4
-        // words). The core routine is in `ark_ff::MontConfig::into_bigint`,
-        // this cannot panic.
-        let bytes: [u8; 32] = scalar
-            .into_bigint()
-            .to_bytes_be()
-            .try_into()
-            .map_err(|_| HostError::from(ConversionError))?;
-        let u = U256::from_be_bytes(bytes);
-        self.map_err(U256Val::try_from_val(self, &u))
     }
 
     #[allow(dead_code)]
@@ -586,64 +567,10 @@ impl Host {
         &self,
         output: &PairingOutput<Bn254>,
     ) -> Result<Bool, HostError> {
-        // TODO: Add proper cost type once BN254 cost types are added to XDR
-        // self.charge_budget(ContractCostType::MemCmp, Some(FP12_SERIALIZED_SIZE as u64))?;
+        self.charge_budget(ContractCostType::MemCmp, Some(FP12_SERIALIZED_SIZE as u64))?;
         match output.0.cmp(&Fq12::ONE) {
             Ordering::Equal => Ok(true.into()),
             _ => Ok(false.into()),
         }
-    }
-
-    pub(crate) fn bn254_fr_add_internal(&self, lhs: &mut Fr, rhs: &Fr) -> Result<(), HostError> {
-        // TODO: Add proper cost type once BN254 cost types are added to XDR
-        // self.charge_budget(ContractCostType::Bn254FrAddSub, None)?;
-        lhs.add_assign(rhs);
-        Ok(())
-    }
-
-    pub(crate) fn bn254_fr_sub_internal(&self, lhs: &mut Fr, rhs: &Fr) -> Result<(), HostError> {
-        // TODO: Add proper cost type once BN254 cost types are added to XDR
-        // self.charge_budget(ContractCostType::Bn254FrAddSub, None)?;
-        lhs.sub_assign(rhs);
-        Ok(())
-    }
-
-    pub(crate) fn bn254_fr_mul_internal(&self, lhs: &mut Fr, rhs: &Fr) -> Result<(), HostError> {
-        // TODO: Add proper cost type once BN254 cost types are added to XDR
-        // self.charge_budget(ContractCostType::Bn254FrMul, None)?;
-        lhs.mul_assign(rhs);
-        Ok(())
-    }
-
-    pub(crate) fn bn254_fr_pow_internal(&self, lhs: &Fr, rhs: &u64) -> Result<Fr, HostError> {
-        // TODO: Add proper cost type once BN254 cost types are added to XDR
-        // self.charge_budget(
-        //     ContractCostType::Bn254FrPow,
-        //     Some(64 - rhs.leading_zeros() as u64),
-        // )?;
-        Ok(lhs.pow(&[*rhs]))
-    }
-
-    pub(crate) fn bn254_fr_inv_internal(&self, lhs: &Fr) -> Result<Fr, HostError> {
-        if lhs.is_zero() {
-            return Err(self.err(
-                ScErrorType::Crypto,
-                ScErrorCode::InvalidInput,
-                "scalar inversion input is zero",
-                &[],
-            ));
-        }
-        // TODO: Add proper cost type once BN254 cost types are added to XDR
-        // self.charge_budget(ContractCostType::Bn254FrInv, None)?;
-        // `inverse()` returns `None` only if the rhs is zero, which we have
-        // checked upfront, so this cannot fail.
-        lhs.inverse().ok_or_else(|| {
-            self.err(
-                ScErrorType::Crypto,
-                ScErrorCode::InternalError,
-                "scalar inversion failed",
-                &[],
-            )
-        })
     }
 }
