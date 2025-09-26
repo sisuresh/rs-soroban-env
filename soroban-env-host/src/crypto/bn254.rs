@@ -4,8 +4,8 @@ use std::ops::{Add, Mul};
 use ark_bn254::{Bn254, Fq, Fq12, Fq2, Fr, G1Affine, G1Projective, G2Affine, G2Projective};
 use ark_ec::{
     pairing::{Pairing, PairingOutput},
-    short_weierstrass::{Affine, Projective, SWCurveConfig},
-    AffineRepr, CurveConfig, CurveGroup, VariableBaseMSM,
+    short_weierstrass::{Affine, SWCurveConfig},
+    AffineRepr, CurveGroup,
 };
 use ark_ff::{BigInteger, Field, PrimeField};
 use ark_serialize::{CanonicalDeserialize, Compress, Validate};
@@ -14,8 +14,8 @@ use num_traits::Zero;
 use crate::{
     host_object::HostVec,
     xdr::{ContractCostType, ScBytes, ScErrorCode, ScErrorType},
-    Bool, BytesObject, ErrorHandler, Host, HostError, TryFromVal, U256Object, U256Small, U256Val,
-    Val, VecObject, U256,
+    Bool, BytesObject, Host, HostError, TryFromVal, U256Object, U256Small, U256Val, Val, VecObject,
+    U256,
 };
 
 pub(crate) const BN254_FP_SERIALIZED_SIZE: usize = 32;
@@ -167,14 +167,6 @@ impl Host {
         Ok(g1.into_affine())
     }
 
-    pub(crate) fn bn254_g2_projective_into_affine(
-        &self,
-        g2: G2Projective,
-    ) -> Result<G2Affine, HostError> {
-        self.charge_budget(ContractCostType::MemCmp, None)?;
-        Ok(g2.into_affine())
-    }
-
     pub(crate) fn bn254_g1_affine_serialize_uncompressed(
         &self,
         g1: &G1Affine,
@@ -202,45 +194,6 @@ impl Host {
         self.add_host_object(self.scbytes_from_slice(&buf)?)
     }
 
-    pub(crate) fn bn254_g2_affine_serialize_uncompressed(
-        &self,
-        g2: &G2Affine,
-    ) -> Result<BytesObject, HostError> {
-        let mut buf = [0u8; BN254_G2_SERIALIZED_SIZE];
-        if g2.is_zero() {
-            return self.add_host_object(self.scbytes_from_slice(&buf)?);
-        }
-        let (x, y) = g2
-            .xy()
-            .ok_or_else(|| self.bn254_err_invalid_input("bn254 G2: infinity"))?;
-        let x_c0_be: [u8; 32] =
-            x.c0.into_bigint()
-                .to_bytes_be()
-                .try_into()
-                .map_err(|_| self.bn254_err_invalid_input("bn254 G2: invalid x.c0"))?;
-        let x_c1_be: [u8; 32] =
-            x.c1.into_bigint()
-                .to_bytes_be()
-                .try_into()
-                .map_err(|_| self.bn254_err_invalid_input("bn254 G2: invalid x.c1"))?;
-        let y_c0_be: [u8; 32] =
-            y.c0.into_bigint()
-                .to_bytes_be()
-                .try_into()
-                .map_err(|_| self.bn254_err_invalid_input("bn254 G2: invalid y.c0"))?;
-        let y_c1_be: [u8; 32] =
-            y.c1.into_bigint()
-                .to_bytes_be()
-                .try_into()
-                .map_err(|_| self.bn254_err_invalid_input("bn254 G2: invalid y.c1"))?;
-
-        buf[0..32].copy_from_slice(&x_c1_be);
-        buf[32..64].copy_from_slice(&x_c0_be);
-        buf[64..96].copy_from_slice(&y_c1_be);
-        buf[96..128].copy_from_slice(&y_c0_be);
-        self.add_host_object(self.scbytes_from_slice(&buf)?)
-    }
-
     pub(crate) fn bn254_g1_add_internal(
         &self,
         p0: G1Affine,
@@ -255,24 +208,6 @@ impl Host {
         p0: G1Affine,
         scalar: Fr,
     ) -> Result<G1Projective, HostError> {
-        self.charge_budget(ContractCostType::MemCmp, None)?;
-        Ok(p0.mul(scalar))
-    }
-
-    pub(crate) fn bn254_g2_add_internal(
-        &self,
-        p0: G2Affine,
-        p1: G2Affine,
-    ) -> Result<G2Projective, HostError> {
-        self.charge_budget(ContractCostType::MemCmp, None)?;
-        Ok(p0.add(p1))
-    }
-
-    pub(crate) fn bn254_g2_mul_internal(
-        &self,
-        p0: G2Affine,
-        scalar: Fr,
-    ) -> Result<G2Projective, HostError> {
         self.charge_budget(ContractCostType::MemCmp, None)?;
         Ok(p0.mul(scalar))
     }
@@ -326,50 +261,6 @@ impl Host {
         Ok(fr)
     }
 
-    pub(crate) fn bn254_fr_to_u256val(&self, scalar: Fr) -> Result<U256Val, HostError> {
-        self.charge_budget(ContractCostType::MemCpy, None)?;
-        let bytes: [u8; 32] = scalar
-            .into_bigint()
-            .to_bytes_be()
-            .try_into()
-            .map_err(|_| self.bn254_err_invalid_input("bn254 Fr: to_bytes_be failed"))?;
-        let u = U256::from_be_bytes(bytes);
-        self.map_err(U256Val::try_from_val(self, &u))
-    }
-
-    pub(crate) fn bn254_fr_vec_from_vecobj(&self, vs: VecObject) -> Result<Vec<Fr>, HostError> {
-        let mut scalars: Vec<Fr> = Vec::new();
-        let _ = self.visit_obj(vs, |vs: &HostVec| {
-            scalars.reserve_exact(vs.len());
-            for s in vs.iter() {
-                let ss = self.bn254_fr_from_u256val(U256Val::try_from_val(self, s)?)?;
-                scalars.push(ss);
-            }
-            Ok(())
-        })?;
-        Ok(scalars)
-    }
-
-    pub(crate) fn bn254_msm_internal<P: SWCurveConfig>(
-        &self,
-        points: &[Affine<P>],
-        scalars: &[<P as CurveConfig>::ScalarField],
-        tag: &str,
-    ) -> Result<Projective<P>, HostError> {
-        self.charge_budget(ContractCostType::MemCpy, None)?;
-        if points.len() != scalars.len() || points.is_empty() {
-            return Err(self.bn254_err_invalid_input(
-                format!(
-                    "{tag} msm: invalid input vector lengths ({}, {})",
-                    points.len(),
-                    scalars.len()
-                )
-                .as_str(),
-            ));
-        }
-        Ok(Projective::<P>::msm_unchecked(points, scalars))
-    }
-
     pub(crate) fn bn254_pairing_internal(
         &self,
         vp1: &Vec<G1Affine>,
@@ -406,55 +297,5 @@ impl Host {
             Ordering::Equal => Ok(true.into()),
             _ => Ok(false.into()),
         }
-    }
-
-    pub(crate) fn bn254_map_fp_to_g1_internal(
-        &self,
-        _fp: BytesObject,
-    ) -> Result<BytesObject, HostError> {
-        Err(self.err(
-            ScErrorType::Crypto,
-            ScErrorCode::InvalidAction,
-            "bn254_map_fp_to_g1 is not supported yet",
-            &[],
-        ))
-    }
-
-    pub(crate) fn bn254_map_fp2_to_g2_internal(
-        &self,
-        _fp2: BytesObject,
-    ) -> Result<BytesObject, HostError> {
-        Err(self.err(
-            ScErrorType::Crypto,
-            ScErrorCode::InvalidAction,
-            "bn254_map_fp2_to_g2 is not supported yet",
-            &[],
-        ))
-    }
-
-    pub(crate) fn bn254_hash_to_g1_internal(
-        &self,
-        _msg: BytesObject,
-        _dst: BytesObject,
-    ) -> Result<BytesObject, HostError> {
-        Err(self.err(
-            ScErrorType::Crypto,
-            ScErrorCode::InvalidAction,
-            "bn254_hash_to_g1 is not supported yet",
-            &[],
-        ))
-    }
-
-    pub(crate) fn bn254_hash_to_g2_internal(
-        &self,
-        _msg: BytesObject,
-        _dst: BytesObject,
-    ) -> Result<BytesObject, HostError> {
-        Err(self.err(
-            ScErrorType::Crypto,
-            ScErrorCode::InvalidAction,
-            "bn254_hash_to_g2 is not supported yet",
-            &[],
-        ))
     }
 }
