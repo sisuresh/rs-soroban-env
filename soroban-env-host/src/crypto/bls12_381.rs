@@ -559,6 +559,20 @@ impl Host {
     ) -> Result<Affine<P>, HostError> {
         self.charge_budget(ty, None)?;
 
+        // new comment
+        // The `map_to_curve` function here calls SWUMap::<P::IsogenousCurve>::map_to_curve(element).unwrap().
+        // It performs some validation on the static
+        // parameters `ZETA`, `COEFF_A`, `COEFF_B`, all of which are statically
+        // defined in `ark_bls12_381::curves::g1_swu_iso` and `g2_swu_iso`.
+        // Realistically this panic cannot occur, otherwise it will panic every
+        // time including during tests
+        // The `SWUMap::map_to_curve` function contains several panic conditions
+        // 1. assert!(!div3.is_zero())
+        // 2. gx1.sqrt().expect()
+        // 3. zeta_gx1.sqrt().expect()
+        // 4. assert!(point_on_curve.is_on_curve())
+
+        // Old comment
         // The `WBMap<g2::Config>::new()` first calls
         // `P::ISOGENY_MAP.apply(GENERATOR)` which returns error if the result
         // point is not on curve. This should not happen if the map constants
@@ -575,15 +589,6 @@ impl Host {
         // defined in `ark_bls12_381::curves::g1_swu_iso` and `g2_swu_iso`.
         // Realistically this panic cannot occur, otherwise it will panic every
         // time including during tests
-        let mapper = WBMap::<P>::new().map_err(|e| {
-            self.err(
-                ScErrorType::Crypto,
-                ScErrorCode::InternalError,
-                format!("hash-to-curve error {e}").as_str(),
-                &[],
-            )
-        })?;
-
         // The `SWUMap::map_to_curve` function contains several panic conditions
         // 1. assert!(!div3.is_zero())
         // 2. gx1.sqrt().expect()
@@ -594,11 +599,11 @@ impl Host {
         // can't happen if the map parameters are correctly defined (several of
         // these have recently been downgraded to debug_assert, e.g see
         // https://github.com/arkworks-rs/algebra/pull/659#discussion_r1450808159),
-        // we cannot guaruantee with 100% confidence these panics will never
+        // we cannot guarantee with 100% confidence these panics will never
         // happen.
         //
         // Otherwise, this function should never Err.
-        mapper.map_to_curve(fp).map_err(|e| {
+        WBMap::<P>::map_to_curve(fp).map_err(|e| {
             self.err(
                 ScErrorType::Crypto,
                 ScErrorCode::InternalError,
