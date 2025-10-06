@@ -561,7 +561,7 @@ impl Host {
 
         // new comment
         // The `map_to_curve` function here calls SWUMap::<P::IsogenousCurve>::map_to_curve(element).unwrap().
-        // It performs some validation on the static
+        // First, it performs some validation on the static
         // parameters `ZETA`, `COEFF_A`, `COEFF_B`, all of which are statically
         // defined in `ark_bls12_381::curves::g1_swu_iso` and `g2_swu_iso`.
         // Realistically this panic cannot occur, otherwise it will panic every
@@ -571,6 +571,11 @@ impl Host {
         // 2. gx1.sqrt().expect()
         // 3. zeta_gx1.sqrt().expect()
         // 4. assert!(point_on_curve.is_on_curve())
+        //
+        // The result of the call above is then passed into `P::ISOGENY_MAP.apply()`,
+        // and then returns an Affine<P>. NOTE/TODO: no curve or subgroup
+        // check is performed on the result point. Does a check need to be done? Or
+        // is it fine because the input was checked to be on the curve?
 
         // Old comment
         // The `WBMap<g2::Config>::new()` first calls
