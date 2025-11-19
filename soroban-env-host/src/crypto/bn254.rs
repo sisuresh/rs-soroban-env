@@ -67,9 +67,34 @@ impl Host {
             None,
         )?;
 
+        // Convert 32-bit little-endian chunks to big-endian
+        let mut be_chunks: Vec<[u8; 4]> = Vec::new();
+        for chunk in slice.chunks_exact(4) {
+            let le_u32 = u32::from_le_bytes([chunk[0], chunk[1], chunk[2], chunk[3]]);
+            let be_chunk = le_u32.to_be_bytes();
+            be_chunks.push(be_chunk);
+        }
+
+        // If there are exactly 4 chunks, swap indexes 0<->1 and 2<->3
+        if be_chunks.len() == 4 {
+            if slice.len() != BN254_G2_SERIALIZED_SIZE {
+                return Err(self.err(
+                    ScErrorType::Crypto,
+                    ScErrorCode::InternalError,
+                    "unexpected length for BN254 G2 element.",
+                    &[],
+                ));
+            }
+            be_chunks.swap(0, 1);
+            be_chunks.swap(2, 3);
+        }
+
+        // Flatten the chunks back into a byte array
+        let be_bytes: Vec<u8> = be_chunks.into_iter().flatten().collect();
+
         // validation turned off here to isolate the cost of serialization.
         // proper validation has to be performed outside of this function
-        T::deserialize_with_mode(slice, Compress::No, Validate::No).map_err(|_e| {
+        T::deserialize_with_mode(be_bytes.as_slice(), Compress::No, Validate::No).map_err(|_e| {
             self.bn254_err_invalid_input(format!("bn254: unable to deserialize {tag}").as_str())
         })
     }
@@ -200,14 +225,59 @@ impl Host {
             units_of_fp::<EXPECTED_SIZE>(),
             None,
         )?;
-        element.serialize_uncompressed(buf).map_err(|_e| {
-            self.err(
+
+        // Serialize to a temporary buffer
+        let mut temp_buf = vec![0u8];
+        element
+            .serialize_uncompressed(&mut temp_buf)
+            .map_err(|_e| {
+                self.err(
+                    ScErrorType::Crypto,
+                    ScErrorCode::InternalError,
+                    format!("bn254 {tag}: unable to serialize {tag}").as_str(),
+                    &[],
+                )
+            })?;
+
+        if buf.len() != temp_buf.len() {
+            return Err(self.err(
                 ScErrorType::Crypto,
-                ScErrorCode::InternalError,
-                format!("bn254 {tag}: unable to serialize {tag}").as_str(),
-                &[],
-            )
-        })?;
+                ScErrorCode::InvalidInput,
+                format!("bn254 {tag}: invalid temp buffer length to serialize into").as_str(),
+                &[
+                    Val::from_u32(buf.len() as u32).into(),
+                    Val::from_u32(temp_buf.len() as u32).into(),
+                ],
+            ));
+        }
+
+        // Convert from big-endian chunks to little-endian chunks
+        let mut be_chunks: Vec<[u8; 4]> = Vec::new();
+        for chunk in temp_buf.chunks_exact(4) {
+            be_chunks.push([chunk[0], chunk[1], chunk[2], chunk[3]]);
+        }
+
+        // If there are exactly 4 chunks, swap indexes 0<->1 and 2<->3
+        if be_chunks.len() == 4 {
+            if EXPECTED_SIZE != BN254_G2_SERIALIZED_SIZE {
+                return Err(self.err(
+                    ScErrorType::Crypto,
+                    ScErrorCode::InternalError,
+                    "unexpected length for BN254 G2 element.",
+                    &[],
+                ));
+            }
+            be_chunks.swap(0, 1);
+            be_chunks.swap(2, 3);
+        }
+
+        // Convert each big-endian chunk to little-endian and write to output buffer
+        for (i, be_chunk) in be_chunks.iter().enumerate() {
+            let be_u32 = u32::from_be_bytes(*be_chunk);
+            let le_chunk = be_u32.to_le_bytes();
+            buf[i * 4..(i + 1) * 4].copy_from_slice(&le_chunk);
+        }
+
         Ok(())
     }
 
