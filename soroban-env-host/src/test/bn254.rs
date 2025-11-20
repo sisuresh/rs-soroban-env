@@ -728,5 +728,61 @@ fn hardcoded_serialization() -> Result<(), HostError> {
         assert!(host.bn254_multi_pairing_check(vp1, vp2).is_ok());
     }
 
+    {
+        let zero = "0".repeat(64);
+        let g1_zero = host.add_host_object(host.scbytes_from_slice(zero.as_bytes())?)?;
+        let g1_plus_zero = host.bn254_g1_add(g1_1, g1_zero)?;
+
+        assert_eq!(
+            host.obj_cmp(g1_plus_zero.into(), g1_1.into())?,
+            Ordering::Equal as i64
+        );
+    }
+
+    Ok(())
+}
+
+#[test]
+fn hardcoded_add_mul() -> Result<(), HostError> {
+    let host = observe_host!(Host::test_host());
+    host.enable_debug()?;
+
+    let expected = vec![
+        "0400000000000000000000000000000000000000000000000000000000000000010000000000000000000000000000000000000000000000000000000000000002",
+        "040e97c669de7c670d734ca98a3bc5176c8f82aa5e44f9a8780998c22dfa5fb5ea19305ad020d76d8529f57dbdc43f7e77a637f17b2d5db5b06a2554c1151b1255",
+        "04070eef7bbfe7c9fa76338ed6d6a12b84f61a1a1b5b4d54c009b3993e2262c5fb1f4118919fac6678cb671ccfe5a3ab7ffc42dae56e8f4382ea3e6582ea7fdd15",
+        "041ce66de558c33edf36b637bd39478e2f317f674e0559025d1e428f37dda84c342e916be0e1e8ab1ba6a9ef642a2f1de44c1f6f91aca23991cb636dbb997cbc01",
+        "042e8d7e2ab119b53b2e2e5f8ddda2116aa821949ae0bd00a6ee6ebbe130397c0709e07974bfeae5c973c098c6dff65e864ee6ee05e9ccd1d61c8ca72e0c49232a",
+    ];
+
+    let mut acc = host.bn254_g1_affine_serialize_uncompressed(&G1Affine::generator())?;
+
+    let scalar = U256Val::from_u32(23938123);
+
+    for i in 0..expected.len() {
+        let hex: &str = &expected[i][2..]; // Remove first two characters
+                                           // Compare acc (BytesObject) with expected hex string by converting hex to BytesObject
+        let expected_bytes = hex::decode(hex).unwrap();
+        let expected_bo = host.test_bin_obj(&expected_bytes)?;
+
+        let args = &[expected_bo.to_val(), acc.to_val()];
+        host.log_diagnostics("pre comp", args);
+        /* assert_eq!(
+            (*host).compare(&acc.to_val(), &expected_bo.to_val())?,
+            core::cmp::Ordering::Equal
+        ); */
+
+        let res = host.bn254_g1_mul(acc, scalar)?;
+        acc = host.bn254_g1_add(res, acc)?;
+        //let args = &[acc.to_val()];
+        //host.log_diagnostics("point", args);
+    }
+
+    // This will fail so the logs will be output. Remove this
+    {
+        let vp1 = host.vec_new()?;
+        host.bn254_multi_pairing_check(vp1, vp1)?;
+    }
+
     Ok(())
 }
