@@ -538,24 +538,24 @@ mod poseidon_tests_bls12 {
         let host = Host::test_host();
         // poseidonperm_x5_255_3
         let poseidon = Poseidon::new((**POSEIDONPERM_X5_255_3).clone());
-
+        
         // Input
         let input: Vec<Scalar> = vec![
             from_hex("0x0000000000000000000000000000000000000000000000000000000000000000"),
             from_hex("0x0000000000000000000000000000000000000000000000000000000000000001"),
             from_hex("0x0000000000000000000000000000000000000000000000000000000000000002"),
         ];
-
+        
         // Expected output
         let expected_output: Vec<Scalar> = vec![
             from_hex("0x28ce19420fc246a05553ad1e8c98f5c9d67166be2c18e9e4cb4b4e317dd2a78a"),
             from_hex("0x51f3e312c95343a896cfd8945ea82ba956c1118ce9b9859b6ea56637b4b1ddc4"),
             from_hex("0x3b2b69139b235626a0bfb56c9527ae66a7bf486ad8c11c14d1da0c69bbe0f79a"),
         ];
-
+        
         // Run the permutation
         let result = poseidon.permutation(&host, &input).unwrap();
-
+        
         // Verify the output matches expected values
         assert_eq!(result, expected_output);
     }
@@ -565,7 +565,7 @@ mod poseidon_tests_bls12 {
         let host = Host::test_host();
         // poseidonperm_x5_255_5
         let poseidon = Poseidon::new((**POSEIDONPERM_X5_255_5).clone());
-
+        
         // Input
         let input: Vec<Scalar> = vec![
             from_hex("0x0000000000000000000000000000000000000000000000000000000000000000"),
@@ -574,7 +574,7 @@ mod poseidon_tests_bls12 {
             from_hex("0x0000000000000000000000000000000000000000000000000000000000000003"),
             from_hex("0x0000000000000000000000000000000000000000000000000000000000000004"),
         ];
-
+        
         // Expected output
         let expected_output: Vec<Scalar> = vec![
             from_hex("0x2a918b9c9f9bd7bb509331c81e297b5707f6fc7393dcee1b13901a0b22202e18"),
@@ -583,10 +583,10 @@ mod poseidon_tests_bls12 {
             from_hex("0x4dc4e29d283afd2a491fe6aef122b9a968e74eff05341f3cc23fda1781dcb566"),
             from_hex("0x03ff622da276830b9451b88b85e6184fd6ae15c8ab3ee25a5667be8592cce3b1"),
         ];
-
+        
         // Run the permutation
         let result = poseidon.permutation(&host, &input).unwrap();
-
+        
         // Verify the output matches expected values
         assert_eq!(result, expected_output);
     }
@@ -599,6 +599,7 @@ mod poseidon_tests_bn254 {
         poseidon_instance_bn254::POSEIDON_BN_PARAMS,
         poseidon_instance_hadeshash_bn254::{POSEIDONPERM_X5_254_3, POSEIDONPERM_X5_254_5},
     };
+
     type Scalar = BnScalar;
 
     static TESTRUNS: usize = 5;
@@ -653,24 +654,24 @@ mod poseidon_tests_bn254 {
         let host = Host::test_host();
         // poseidonperm_x5_254_3
         let poseidon = Poseidon::new((**POSEIDONPERM_X5_254_3).clone());
-
+        
         // Input
         let input: Vec<Scalar> = vec![
             from_hex("0x0000000000000000000000000000000000000000000000000000000000000000"),
             from_hex("0x0000000000000000000000000000000000000000000000000000000000000001"),
             from_hex("0x0000000000000000000000000000000000000000000000000000000000000002"),
         ];
-
+        
         // Expected output
         let expected_output: Vec<Scalar> = vec![
             from_hex("0x115cc0f5e7d690413df64c6b9662e9cf2a3617f2743245519e19607a4417189a"),
             from_hex("0x0fca49b798923ab0239de1c9e7a4a9a2210312b6a2f616d18b5a87f9b628ae29"),
             from_hex("0x0e7ae82e40091e63cbd4f16a6d16310b3729d4b6e138fcf54110e2867045a30c"),
         ];
-
+        
         // Run the permutation
         let result = poseidon.permutation(&host, &input).unwrap();
-
+        
         // Verify the output matches expected values
         assert_eq!(result, expected_output);
     }
@@ -680,7 +681,7 @@ mod poseidon_tests_bn254 {
         let host = Host::test_host();
         // poseidonperm_x5_254_5
         let poseidon = Poseidon::new((**POSEIDONPERM_X5_254_5).clone());
-
+        
         // Input
         let input: Vec<Scalar> = vec![
             from_hex("0x0000000000000000000000000000000000000000000000000000000000000000"),
@@ -689,7 +690,7 @@ mod poseidon_tests_bn254 {
             from_hex("0x0000000000000000000000000000000000000000000000000000000000000003"),
             from_hex("0x0000000000000000000000000000000000000000000000000000000000000004"),
         ];
-
+        
         // Expected output
         let expected_output: Vec<Scalar> = vec![
             from_hex("0x299c867db6c1fdd79dcefa40e4510b9837e60ebb1ce0663dbaa525df65250465"),
@@ -698,11 +699,228 @@ mod poseidon_tests_bn254 {
             from_hex("0x0eb08f6d809668a981c186beaf6110060707059576406b248e5d9cf6e78b3d3e"),
             from_hex("0x07748bc6877c9b82c8b98666ee9d0626ec7f5be4205f79ee8528ef1c4a376fc7"),
         ];
-
+        
         // Run the permutation
         let result = poseidon.permutation(&host, &input).unwrap();
-
+        
         // Verify the output matches expected values
         assert_eq!(result, expected_output);
     }
+
+
+    /// Hash function compatible with arnaucube/poseidon-rs
+    /// Creates state = [0, input...], runs permutation, and returns state[0]
+    fn poseidon_hash_bn254(
+        host: &Host,
+        poseidon: &Poseidon<BnScalar>,
+        input: Vec<BnScalar>,
+    ) -> Result<BnScalar, HostError> {
+        let mut state = vec![BnScalar::from(0)];
+        state.extend(input);
+        let result = poseidon.permutation(host, &state)?;
+        Ok(result[0])
+    }
+
+    #[test]
+    fn test_poseidon_bn254_arnaucube_compat() -> Result<(), HostError> {
+        // Test vectors from https://github.com/arnaucube/poseidon-rs
+
+        let host = Host::test_host();
+        host.enable_debug()?;
+        let params = &**POSEIDON_BN_PARAMS;
+        let poseidon = Poseidon::new(params.clone());
+
+        // Test case 1: hash([1])
+        let h = poseidon_hash_bn254(&host, &poseidon, vec![BnScalar::from(1)])?;
+        let expected = from_hex("0x29176100eaa962bdc1fe6c654d6a3c130e96a4d1168b33848b897dc502820133");
+        assert_eq!(h, expected);
+
+        // Test case 2: hash([1, 2])
+        let h = poseidon_hash_bn254(&host, &poseidon, vec![BnScalar::from(1), BnScalar::from(2)])?;
+        let expected = from_hex("0x115cc0f5e7d690413df64c6b9662e9cf2a3617f2743245519e19607a4417189a");
+        assert_eq!(h, expected);
+
+        // Test case 3: hash([1, 2, 0, 0, 0])
+        let h = poseidon_hash_bn254(
+            &host,
+            &poseidon,
+            vec![
+                BnScalar::from(1),
+                BnScalar::from(2),
+                BnScalar::from(0),
+                BnScalar::from(0),
+                BnScalar::from(0),
+            ],
+        )?;
+        let expected = from_hex("0x024058dd1e168f34bac462b6fffe58fd69982807e9884c1c6148182319cee427");
+        assert_eq!(h, expected);
+
+        // Test case 4: hash([1, 2, 0, 0, 0, 0])
+        let h = poseidon_hash_bn254(
+            &host,
+            &poseidon,
+            vec![
+                BnScalar::from(1),
+                BnScalar::from(2),
+                BnScalar::from(0),
+                BnScalar::from(0),
+                BnScalar::from(0),
+                BnScalar::from(0),
+            ],
+        )?;
+        let expected = from_hex("0x21e82f465e00a15965e97a44fe3c30f3bf5279d8bf37d4e65765b6c2550f42a1");
+        assert_eq!(h, expected);
+
+        // Test case 5: hash([3, 4, 0, 0, 0])
+        let h = poseidon_hash_bn254(
+            &host,
+            &poseidon,
+            vec![
+                BnScalar::from(3),
+                BnScalar::from(4),
+                BnScalar::from(0),
+                BnScalar::from(0),
+                BnScalar::from(0),
+            ],
+        )?;
+        let expected = from_hex("0x0cd93f1bab9e8c9166ef00f2a1b0e1d66d6a4145e596abe0526247747cc71214");
+        assert_eq!(h, expected);
+
+        // Test case 6: hash([3, 4, 0, 0, 0, 0])
+        let h = poseidon_hash_bn254(
+            &host,
+            &poseidon,
+            vec![
+                BnScalar::from(3),
+                BnScalar::from(4),
+                BnScalar::from(0),
+                BnScalar::from(0),
+                BnScalar::from(0),
+                BnScalar::from(0),
+            ],
+        )?;
+        let expected = from_hex("0x1b1caddfc5ea47e09bb445a7447eb9694b8d1b75a97fff58e884398c6b22825a");
+        assert_eq!(h, expected);
+
+        // Test case 7: hash([1, 2, 3, 4, 5, 6])
+        let h = poseidon_hash_bn254(
+            &host,
+            &poseidon,
+            vec![
+                BnScalar::from(1),
+                BnScalar::from(2),
+                BnScalar::from(3),
+                BnScalar::from(4),
+                BnScalar::from(5),
+                BnScalar::from(6),
+            ],
+        )?;
+        let expected = from_hex("0x2d1a03850084442813c8ebf094dea47538490a68b05f2239134a4cca2f6302e1");
+        assert_eq!(h, expected);
+
+        // Test case 8: hash([1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14])
+        let h = poseidon_hash_bn254(
+            &host,
+            &poseidon,
+            vec![
+                BnScalar::from(1),
+                BnScalar::from(2),
+                BnScalar::from(3),
+                BnScalar::from(4),
+                BnScalar::from(5),
+                BnScalar::from(6),
+                BnScalar::from(7),
+                BnScalar::from(8),
+                BnScalar::from(9),
+                BnScalar::from(10),
+                BnScalar::from(11),
+                BnScalar::from(12),
+                BnScalar::from(13),
+                BnScalar::from(14),
+            ],
+        )?;
+        let expected = from_hex("0x1278779aaafc5ca58bf573151005830cdb4683fb26591c85a7464d4f0e527776");
+        assert_eq!(h, expected);
+
+        // Test case 9: hash([1, 2, 3, 4, 5, 6, 7, 8, 9, 0, 0, 0, 0, 0])
+        let h = poseidon_hash_bn254(
+            &host,
+            &poseidon,
+            vec![
+                BnScalar::from(1),
+                BnScalar::from(2),
+                BnScalar::from(3),
+                BnScalar::from(4),
+                BnScalar::from(5),
+                BnScalar::from(6),
+                BnScalar::from(7),
+                BnScalar::from(8),
+                BnScalar::from(9),
+                BnScalar::from(0),
+                BnScalar::from(0),
+                BnScalar::from(0),
+                BnScalar::from(0),
+                BnScalar::from(0),
+            ],
+        )?;
+        let expected = from_hex("0x0c3fbfb4d3f583df4124b4b3ac94ca3a0a1948a89fef727204d89de1c4d35693");
+        assert_eq!(h, expected);
+
+        // Test case 10: hash([1, 2, 3, 4, 5, 6, 7, 8, 9, 0, 0, 0, 0, 0, 0, 0])
+        let h = poseidon_hash_bn254(
+            &host,
+            &poseidon,
+            vec![
+                BnScalar::from(1),
+                BnScalar::from(2),
+                BnScalar::from(3),
+                BnScalar::from(4),
+                BnScalar::from(5),
+                BnScalar::from(6),
+                BnScalar::from(7),
+                BnScalar::from(8),
+                BnScalar::from(9),
+                BnScalar::from(0),
+                BnScalar::from(0),
+                BnScalar::from(0),
+                BnScalar::from(0),
+                BnScalar::from(0),
+                BnScalar::from(0),
+                BnScalar::from(0),
+            ],
+        )?;
+        let expected = from_hex("0x1a456f8563b98c9649877f38b7e36534b241c29d457d307c481cbd12b69bb721");
+        assert_eq!(h, expected);
+
+        // Test case 11: hash([1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16])
+        let h = poseidon_hash_bn254(
+            &host,
+            &poseidon,
+            vec![
+                BnScalar::from(1),
+                BnScalar::from(2),
+                BnScalar::from(3),
+                BnScalar::from(4),
+                BnScalar::from(5),
+                BnScalar::from(6),
+                BnScalar::from(7),
+                BnScalar::from(8),
+                BnScalar::from(9),
+                BnScalar::from(10),
+                BnScalar::from(11),
+                BnScalar::from(12),
+                BnScalar::from(13),
+                BnScalar::from(14),
+                BnScalar::from(15),
+                BnScalar::from(16),
+            ],
+        )?;
+        let expected = from_hex("0x16159a551cbb66108281a48099fff949ae08afd7f1f2ec06de2ffb96b919b765");
+        assert_eq!(h, expected);
+
+        Ok(())
+    }
 }
+
+
+
