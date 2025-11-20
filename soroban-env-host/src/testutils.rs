@@ -1156,16 +1156,23 @@ pub fn simple_account_sign_fn<'a>(
     Box::new(|payload: &[u8]| -> Val { sign_payload_for_ed25519(host, kp, payload).into() })
 }
 
-#[cfg(test)]
-pub(crate) mod crypto {
-    use crate::{crypto::metered_scalar::MeteredScalar, EnvBase, Host, HostError, VecObject};
-    use ark_ff::PrimeField;
-    use hex::FromHex;
+#[cfg(any(test, feature = "testutils"))]
+pub mod crypto {
+    use crate::{crypto::metered_scalar::MeteredScalar, EnvBase, Env, Host, HostError, VecObject, budget::Budget, storage::{Footprint, Storage, StorageMap}, LedgerInfo};
+    use ark_ff::{PrimeField, BigInteger};
     use rand::rngs::StdRng;
 
+    pub fn parse_hex(s: &str) -> Vec<u8> {
+        let hex_str = s.trim_start_matches("0x");
+        (0..hex_str.len())
+            .step_by(2)
+            .map(|i| u8::from_str_radix(&hex_str[i..i + 2], 16).unwrap())
+            .collect()
+    }
+
     pub fn from_hex<F: PrimeField>(s: &str) -> F {
-        let a = Vec::from_hex(&s[2..]).expect("Invalid Hex String");
-        F::from_be_bytes_mod_order(&a as &[u8])
+        let a = parse_hex(s);
+        F::from_be_bytes_mod_order(&a)
     }
 
     pub fn random_scalar<F: PrimeField>(rng: &mut StdRng) -> F {
@@ -1183,5 +1190,48 @@ pub(crate) mod crypto {
             row_objects.push(row_obj.to_val());
         }
         host.vec_new_from_slice(&row_objects)
+    }
+
+    // Helper function to convert a scalar to U256Val
+    pub fn scalar_to_u256val<S: PrimeField>(host: &Host, scalar: &S) -> Result<crate::U256Val, HostError> {
+        let bytes = scalar.into_bigint().to_bytes_be();        
+        host.u256_val_from_be_bytes(host.bytes_new_from_slice(bytes.as_slice())?)
+    }
+
+    // Helper function to convert Vec<Scalar> to VecObject
+    pub fn scalar_vec_to_vecobj<S: PrimeField>(host: &Host, scalars: Vec<S>) -> Result<VecObject, HostError> {
+        let mut vals = Vec::with_capacity(scalars.len());
+        for scalar in scalars.iter() {
+            let u256_val = scalar_to_u256val(host, scalar)?;
+            vals.push(u256_val.to_val());
+        }
+        host.vec_new_from_slice(&vals)
+    }
+
+    // Helper function to convert VecObject back to Vec<Scalar>
+    pub fn vecobj_to_scalar_vec<S: PrimeField>(host: &Host, vecobj: VecObject) -> Result<Vec<S>, HostError> {
+        let len: u32 = host.vec_len(vecobj)?.into();
+        let mut scalars = Vec::with_capacity(len as usize);
+        
+        for i in 0..len {
+            let val = host.vec_get(vecobj, i.into())?;
+            let u256_val = crate::U256Val::try_from(val).map_err(|_| {
+                crate::HostError::from(crate::Error::from_type_and_code(
+                    crate::xdr::ScErrorType::Crypto,
+                    crate::xdr::ScErrorCode::InvalidInput,
+                ))
+            })?;
+            let bytes_obj = host.u256_val_to_be_bytes(u256_val)?;
+            
+            // Copy bytes from BytesObject to a Vec<u8>
+            let bytes_len: u32 = host.bytes_len(bytes_obj)?.into();
+            let mut bytes = vec![0u8; bytes_len as usize];
+            host.bytes_copy_to_slice(bytes_obj, 0u32.into(), &mut bytes)?;
+            
+            let scalar = S::from_be_bytes_mod_order(&bytes);
+            scalars.push(scalar);
+        }
+        
+        Ok(scalars)
     }
 }
