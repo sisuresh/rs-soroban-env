@@ -664,22 +664,69 @@ fn test_serialization_roundtrip() -> Result<(), HostError> {
     }
     Ok(())
 }
-/*
+
 #[test]
-fn g1_vectors() {
-    let expected = vec![
-        "0400000000000000000000000000000000000000000000000000000000000000010000000000000000000000000000000000000000000000000000000000000002",
-        "040e97c669de7c670d734ca98a3bc5176c8f82aa5e44f9a8780998c22dfa5fb5ea19305ad020d76d8529f57dbdc43f7e77a637f17b2d5db5b06a2554c1151b1255",
-        "04070eef7bbfe7c9fa76338ed6d6a12b84f61a1a1b5b4d54c009b3993e2262c5fb1f4118919fac6678cb671ccfe5a3ab7ffc42dae56e8f4382ea3e6582ea7fdd15",
-    ];
+fn hardcoded_serialization() -> Result<(), HostError> {
+    /*
+    This is a test vector from Matteo Lisotto with 260 bytes containing:
+        4 bytes as selector that can be ignored
+        64 bytes is a G1 point
+        128 bytes is a G2 point
+        64 bytes G1 point
+        They are in big endian.
+     */
+    let test_data = "73c457ba01698c70b2f3dd6b19a450205e703fe33be07c41caec66a6f03384788aac1c0121a63c107b0e9d223e3ccb9343ac4244d077b481d94ebf1b6e6fb6365e5818c729b12498230d06e179d6858d9ce69c1ad1cd892bcbd9a89d2df0ba329bde93971f05a1b0e7babcfb772f3f4c2088b16f45feb2aa0c58f18f78a5861fdc5cc02007e1f86e21d516b42a6ad7bad5bbcc4b8b3fbaefd56804748828cd3dece00f531cc3ea0c1d713852e2916bf95e5e883e4ebdc2085a9652967ac6c1d164761bdb1f181e7635aad462677a0d5d24d1d7757fc074d17ba32d2aa2637b71d62c426505f71b3f87954f7b27ba60325520b87701e95d457cf3bd7d663e9f1af453fb4d";
 
-    let mut acc = G1Affine::generator();
-    let by = Fr::from_str("23938123").unwrap();
+    let host = observe_host!(Host::test_host());
+    host.enable_debug()?;
 
-    for i in 0..3 {
-        assert!(expected[i] == into_hex(acc).unwrap());
-        assert!(from_hex::<G1>(expected[i]).unwrap() == acc);
+    // Decode hex string to bytes
+    let bytes = hex::decode(test_data).unwrap();
 
-        acc = acc * by + acc;
+    // Skip the first 4 bytes (selector)
+    let offset = 4;
+
+    // Extract first G1 point (64 bytes)
+    let g1_1_bytes = &bytes[offset..offset + BN254_G1_SERIALIZED_SIZE];
+    let g1_1 = host.add_host_object(host.scbytes_from_slice(g1_1_bytes)?)?;
+
+    // Extract G2 point (128 bytes)
+    let g2_offset = offset + BN254_G1_SERIALIZED_SIZE;
+    let g2_bytes = &bytes[g2_offset..g2_offset + BN254_G2_SERIALIZED_SIZE];
+    let g2 = host.add_host_object(host.scbytes_from_slice(g2_bytes)?)?;
+
+    // Extract second G1 point (64 bytes)
+    let g1_2_offset = g2_offset + BN254_G2_SERIALIZED_SIZE;
+    let g1_2_bytes = &bytes[g1_2_offset..g1_2_offset + BN254_G1_SERIALIZED_SIZE];
+    let g1_2 = host.add_host_object(host.scbytes_from_slice(g1_2_bytes)?)?;
+
+    {
+        let double = U256Val::from_u32(2);
+        let res1 = host.bn254_g1_mul(g1_1, double)?;
+        let res2 = host.bn254_g1_add(g1_1, g1_1)?;
+
+        assert_eq!(
+            host.obj_cmp(res1.into(), res2.into())?,
+            Ordering::Equal as i64
+        );
     }
-} */
+
+    {
+        let a_plus_b = host.bn254_g1_add(g1_1, g1_2)?;
+        let b_plus_a = host.bn254_g1_add(g1_2, g1_1)?;
+        assert_eq!(
+            host.obj_cmp(a_plus_b.into(), b_plus_a.into())?,
+            Ordering::Equal as i64
+        );
+    }
+
+    // any of g2 point is infinity
+    {
+        host.budget_ref().reset_default()?;
+        let vp1 = host.vec_new_from_slice(&[g1_1.to_val(), g1_2.to_val()])?;
+        let vp2 = host.vec_new_from_slice(&[g2.to_val(), g2_zero(&host)?.to_val()])?;
+        assert!(host.bn254_multi_pairing_check(vp1, vp2).is_ok());
+    }
+
+    Ok(())
+}
