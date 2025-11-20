@@ -153,7 +153,7 @@ impl CostRunner for Bn254DecodeFpRun {
     fn run_iter(host: &crate::Host, _iter: u64, sample: Bn254DecodeFpSample) -> Self::RecycledType {
         let Bn254DecodeFpSample(buf) = &sample;
         let res = host
-            .bn254_deserialize_uncompressed_no_validate::<BN254_FP_SERIALIZED_SIZE, _>(buf, "test")
+            .field_element_deserialize::<BN254_FP_SERIALIZED_SIZE, _>(buf, "test")
             .unwrap();
         black_box((Some(sample), Some(res)))
     }

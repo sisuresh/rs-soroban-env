@@ -1,6 +1,6 @@
 use crate::{
     crypto::bn254::{BN254_G1_SERIALIZED_SIZE, BN254_G2_SERIALIZED_SIZE},
-    xdr::{ContractCostType, ScErrorCode, ScErrorType},
+    xdr::{ScErrorCode, ScErrorType},
     BytesObject, Env, EnvBase, ErrorHandler, Host, HostError, U256Val, U32Val,
 };
 use ark_bn254::{Fq, Fq2, Fr, G1Affine, G2Affine};
@@ -86,7 +86,7 @@ fn g1_zero(host: &Host) -> Result<BytesObject, HostError> {
 }
 
 fn neg_g1(bo: BytesObject, host: &Host) -> Result<BytesObject, HostError> {
-    let g1 = host.bn254_g1_affine_deserialize_from_bytesobj(bo)?;
+    let g1 = host.bn254_g1_affine_deserialize(bo)?;
     host.bn254_g1_affine_serialize_uncompressed(&-g1)
 }
 
@@ -132,11 +132,8 @@ fn sample_g2_out_of_range(host: &Host, rng: &mut StdRng) -> Result<BytesObject, 
 }
 
 fn neg_g2(bo: BytesObject, host: &Host) -> Result<BytesObject, HostError> {
-    let g2 = host.bn254_affine_deserialize::<BN254_G2_SERIALIZED_SIZE, _>(
+    let g2 = host.bn254_g2_affine_deserialize(
         bo,
-        ContractCostType::Bn254G2CheckPointOnCurve,
-        true,
-        "G2",
     )?;
     bn254_g2_affine_serialize_uncompressed(host, &-g2)
 }
@@ -563,7 +560,7 @@ fn test_serialization_roundtrip() -> Result<(), HostError> {
     {
         let g1_roundtrip_check = |g1: &G1Affine| -> Result<bool, HostError> {
             let bo = host.bn254_g1_affine_serialize_uncompressed(&g1)?;
-            let g1_back = host.bn254_g1_affine_deserialize_from_bytesobj(bo)?;
+            let g1_back = host.bn254_g1_affine_deserialize(bo)?;
             Ok(g1.eq(&g1_back))
         };
         assert!(g1_roundtrip_check(&G1Affine::zero())?);
@@ -587,31 +584,27 @@ fn test_serialization_roundtrip() -> Result<(), HostError> {
     }
     // g2
     {
-        let g2_roundtrip_check = |g2: &G2Affine, subgroup_check: bool| -> Result<bool, HostError> {
+        let g2_roundtrip_check = |g2: &G2Affine| -> Result<bool, HostError> {
             let bo = bn254_g2_affine_serialize_uncompressed(&host, &g2)?;
-            let g2_back = host.bn254_affine_deserialize::<BN254_G2_SERIALIZED_SIZE, _>(
+            let g2_back = host.bn254_g2_affine_deserialize(
                 bo,
-                ContractCostType::Bn254G2CheckPointOnCurve,
-                subgroup_check,
-                "G2",
             )?;
             Ok(g2.eq(&g2_back))
         };
-        assert!(g2_roundtrip_check(&G2Affine::zero(), true)?);
-        assert!(g2_roundtrip_check(&G2Affine::generator(), true)?);
+        assert!(g2_roundtrip_check(&G2Affine::zero())?);
+        assert!(g2_roundtrip_check(&G2Affine::generator())?);
         for _ in 0..20 {
             // on curve and in subgroup
             let g2 = G2Affine::rand(&mut rng);
-            assert!(g2_roundtrip_check(&g2, true)?)
+            assert!(g2_roundtrip_check(&g2)?)
         }
         for i in 0..10 {
             // on curve and not in subgroup
             let g2 = G2Affine::get_point_from_x_unchecked(Fq2::rand(&mut rng), (i % 2) != 0)
                 .unwrap_or(G2Affine::zero());
-            assert!(g2_roundtrip_check(&g2, false)?);
             if !g2.is_in_correct_subgroup_assuming_on_curve() {
                 assert!(HostError::result_matches_err(
-                    g2_roundtrip_check(&g2, true),
+                    g2_roundtrip_check(&g2),
                     (ScErrorType::Crypto, ScErrorCode::InvalidInput)
                 ));
             }
@@ -623,7 +616,7 @@ fn test_serialization_roundtrip() -> Result<(), HostError> {
                 continue;
             }
             assert!(HostError::result_matches_err(
-                g2_roundtrip_check(&g2, false),
+                g2_roundtrip_check(&g2),
                 (ScErrorType::Crypto, ScErrorCode::InvalidInput)
             ));
         }

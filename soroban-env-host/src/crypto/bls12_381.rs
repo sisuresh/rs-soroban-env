@@ -336,62 +336,16 @@ impl Host {
         scalar.into_u256val(self)
     }
 
-    pub(crate) fn field_element_deserialize<const EXPECTED_SIZE: usize, T: CanonicalDeserialize>(
-        &self,
-        bo: BytesObject,
-        tag: &str,
-    ) -> Result<T, HostError> {
-        self.visit_obj(bo, |bytes: &ScBytes| {
-            if bytes.len() != EXPECTED_SIZE {
-                return Err(self.err(
-                    ScErrorType::Crypto,
-                    ScErrorCode::InvalidInput,
-                    format!(
-                        "bls12-381 field element {}: invalid input length to deserialize",
-                        tag
-                    )
-                    .as_str(),
-                    &[
-                        Val::from_u32(bytes.len() as u32).into(),
-                        Val::from_u32(EXPECTED_SIZE as u32).into(),
-                    ],
-                ));
-            }
-            self.charge_budget(ContractCostType::MemCpy, Some(EXPECTED_SIZE as u64))?;
-            let mut buf = [0u8; EXPECTED_SIZE];
-            buf.copy_from_slice(bytes);
-            buf.reverse();
-
-            // The field element here an either be a Fp<P, N=6> (base field
-            // element) or QuadExtField<P> (quadratic extension)
-            //
-            // - `CanonicalDeserialize for Fp<P, N>` assumes input bytes in
-            // little-endian order, with the highest (right-most) bits being
-            // empty flags. This is reverse of our rule, which assumes
-            // big-endian order with the highest (left-most) bits for flags.
-            //
-            // - `CanonicalDeserialize for QuadExtField<P>` reads the first
-            // chunk, deserialize it into `Fp` as `c0`. Then repeat for `c1`. The
-            // deserialization for `Fp` follows same rules as above, where the
-            // bytes are expected in little-endian, with the highest bits being
-            // empty flags. There is no check involved. This is entirely
-            // reversed from our input format: `be_bytes(c1) || be_bytes(c0)` from
-            // [standard](https://github.com/zcash/librustzcash/blob/6e0364cd42a2b3d2b958a54771ef51a8db79dd29/pairing/src/bls12_381/README.md#serialization)
-            //
-            // In either case, we just need to reverse the input bytes before
-            // passing them in. There is no other check for `Fp` besides the
-            // length check, internally it makes sure `Fp` is valid integer
-            // modulo `q` (the prime modulus)
-            self.deserialize_uncompressed_no_validate::<EXPECTED_SIZE, _>(&buf, tag)
+    pub(crate) fn fp_deserialize_from_bytesobj(&self, bo: BytesObject) -> Result<Fq, HostError> {
+        self.visit_obj(bo, |bytes: &ScBytes|{            
+            self.field_element_deserialize::<FP_SERIALIZED_SIZE, Fq>(bytes.as_slice(), "Fp")
         })
     }
 
-    pub(crate) fn fp_deserialize_from_bytesobj(&self, bo: BytesObject) -> Result<Fq, HostError> {
-        self.field_element_deserialize::<FP_SERIALIZED_SIZE, Fq>(bo, "Fp")
-    }
-
     pub(crate) fn fp2_deserialize_from_bytesobj(&self, bo: BytesObject) -> Result<Fq2, HostError> {
-        self.field_element_deserialize::<FP2_SERIALIZED_SIZE, Fq2>(bo, "Fp2")
+        self.visit_obj(bo, |bytes: &ScBytes|{            
+            self.field_element_deserialize::<FP2_SERIALIZED_SIZE, Fq2>(bytes.as_slice(), "Fp2")
+        })
     }
 
     pub(crate) fn fr_vec_from_vecobj(&self, vs: VecObject) -> Result<Vec<Fr>, HostError> {
