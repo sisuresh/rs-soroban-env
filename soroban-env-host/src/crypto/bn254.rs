@@ -67,16 +67,14 @@ impl Host {
             None,
         )?;
 
-        // Convert 32-bit little-endian chunks to big-endian
-        let mut be_chunks: Vec<[u8; 4]> = Vec::new();
-        for chunk in slice.chunks_exact(4) {
-            let le_u32 = u32::from_le_bytes([chunk[0], chunk[1], chunk[2], chunk[3]]);
-            let be_chunk = le_u32.to_be_bytes();
-            be_chunks.push(be_chunk);
+        // Convert field element chunks: split into BN254_FP_SERIALIZED_SIZE chunks
+        let mut fp_chunks: Vec<Vec<u8>> = Vec::new();
+        for fp_chunk in slice.chunks_exact(BN254_FP_SERIALIZED_SIZE) {
+            fp_chunks.push(fp_chunk.to_vec());
         }
 
-        // If there are exactly 4 chunks, swap indexes 0<->1 and 2<->3
-        if be_chunks.len() == 4 {
+        // If there are exactly 4 field element chunks (G2 point), swap indexes 0<->1 and 2<->3
+        if fp_chunks.len() == 4 {
             if slice.len() != BN254_G2_SERIALIZED_SIZE {
                 return Err(self.err(
                     ScErrorType::Crypto,
@@ -85,16 +83,20 @@ impl Host {
                     &[],
                 ));
             }
-            be_chunks.swap(0, 1);
-            be_chunks.swap(2, 3);
+            fp_chunks.swap(0, 1);
+            fp_chunks.swap(2, 3);
         }
 
-        // Flatten the chunks back into a byte array
-        let be_bytes: Vec<u8> = be_chunks.into_iter().flatten().collect();
+        // Convert each field element from big-endian 32-bit chunks to little-endian 32-bit chunks
+        let mut le_bytes = Vec::with_capacity(slice.len());
+        for mut fp_chunk in fp_chunks.clone() {
+            fp_chunk.reverse();
+            le_bytes.extend_from_slice(&fp_chunk);
+        }
 
         // validation turned off here to isolate the cost of serialization.
         // proper validation has to be performed outside of this function
-        T::deserialize_with_mode(be_bytes.as_slice(), Compress::No, Validate::No).map_err(|_e| {
+        T::deserialize_with_mode(le_bytes.as_slice(), Compress::No, Validate::No).map_err(|_e| {
             self.bn254_err_invalid_input(format!("bn254: unable to deserialize {tag}").as_str())
         })
     }
@@ -226,8 +228,8 @@ impl Host {
             None,
         )?;
 
-        // Serialize to a temporary buffer
-        let mut temp_buf = vec![0u8];
+        // Serialize to a temporary buffer (produces little-endian format)
+        let mut temp_buf = vec![];
         element
             .serialize_uncompressed(&mut temp_buf)
             .map_err(|_e| {
@@ -251,14 +253,14 @@ impl Host {
             ));
         }
 
-        // Convert from big-endian chunks to little-endian chunks
-        let mut be_chunks: Vec<[u8; 4]> = Vec::new();
-        for chunk in temp_buf.chunks_exact(4) {
-            be_chunks.push([chunk[0], chunk[1], chunk[2], chunk[3]]);
+        // Convert field element chunks: split into BN254_FP_SERIALIZED_SIZE chunks
+        let mut fp_chunks: Vec<Vec<u8>> = Vec::new();
+        for fp_chunk in temp_buf.chunks_exact(BN254_FP_SERIALIZED_SIZE) {
+            fp_chunks.push(fp_chunk.to_vec());
         }
 
-        // If there are exactly 4 chunks, swap indexes 0<->1 and 2<->3
-        if be_chunks.len() == 4 {
+        // If there are exactly 4 field element chunks (G2 point), swap indexes 0<->1 and 2<->3
+        if fp_chunks.len() == 4 {
             if EXPECTED_SIZE != BN254_G2_SERIALIZED_SIZE {
                 return Err(self.err(
                     ScErrorType::Crypto,
@@ -267,15 +269,17 @@ impl Host {
                     &[],
                 ));
             }
-            be_chunks.swap(0, 1);
-            be_chunks.swap(2, 3);
+            fp_chunks.swap(0, 1);
+            fp_chunks.swap(2, 3);
         }
 
-        // Convert each big-endian chunk to little-endian and write to output buffer
-        for (i, be_chunk) in be_chunks.iter().enumerate() {
-            let be_u32 = u32::from_be_bytes(*be_chunk);
-            let le_chunk = be_u32.to_le_bytes();
-            buf[i * 4..(i + 1) * 4].copy_from_slice(&le_chunk);
+        // Convert each field element from little-endian 32-bit chunks to big-endian 32-bit chunks
+        let mut buf_offset = 0;
+        for mut fp_chunk in fp_chunks {
+            fp_chunk.reverse();
+
+            buf[buf_offset..buf_offset + BN254_FP_SERIALIZED_SIZE].copy_from_slice(&fp_chunk);
+            buf_offset += BN254_FP_SERIALIZED_SIZE;
         }
 
         Ok(())

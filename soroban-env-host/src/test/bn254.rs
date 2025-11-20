@@ -1,5 +1,5 @@
 use crate::{
-    crypto::bn254::{BN254_G1_SERIALIZED_SIZE, BN254_G2_SERIALIZED_SIZE},
+    crypto::bn254::{BN254_FP_SERIALIZED_SIZE, BN254_G1_SERIALIZED_SIZE, BN254_G2_SERIALIZED_SIZE},
     xdr::{ContractCostType, ScErrorCode, ScErrorType},
     BytesObject, Env, EnvBase, ErrorHandler, Host, HostError, U256Val, U32Val,
 };
@@ -94,8 +94,30 @@ fn bn254_g2_affine_serialize_uncompressed(
     host: &Host,
     g2: &G2Affine,
 ) -> Result<BytesObject, HostError> {
-    let mut buf: Vec<u8> = Vec::with_capacity(BN254_G2_SERIALIZED_SIZE);
-    g2.serialize_uncompressed(&mut buf).unwrap();
+    // Serialize to little-endian format
+    let mut temp_buf: Vec<u8> = Vec::with_capacity(BN254_G2_SERIALIZED_SIZE);
+    g2.serialize_uncompressed(&mut temp_buf).unwrap();
+
+    // Convert field element chunks: split into BN254_FP_SERIALIZED_SIZE chunks
+    let mut fp_chunks: Vec<Vec<u8>> = Vec::new();
+    for fp_chunk in temp_buf.chunks_exact(BN254_FP_SERIALIZED_SIZE) {
+        fp_chunks.push(fp_chunk.to_vec());
+    }
+
+    // G2 always has exactly 4 field element chunks, swap indexes 0<->1 and 2<->3
+    fp_chunks.swap(0, 1);
+    fp_chunks.swap(2, 3);
+
+    // Convert each field element from little-endian 32-bit chunks to big-endian 32-bit chunks
+    let mut buf = vec![0u8; BN254_G2_SERIALIZED_SIZE];
+    let mut buf_offset = 0;
+    for mut fp_chunk in fp_chunks {
+        fp_chunk.reverse();
+
+        buf[buf_offset..buf_offset + BN254_FP_SERIALIZED_SIZE].copy_from_slice(&fp_chunk);
+        buf_offset += BN254_FP_SERIALIZED_SIZE;
+    }
+
     host.add_host_object(host.scbytes_from_slice(&buf)?)
 }
 
@@ -642,3 +664,22 @@ fn test_serialization_roundtrip() -> Result<(), HostError> {
     }
     Ok(())
 }
+/*
+#[test]
+fn g1_vectors() {
+    let expected = vec![
+        "0400000000000000000000000000000000000000000000000000000000000000010000000000000000000000000000000000000000000000000000000000000002",
+        "040e97c669de7c670d734ca98a3bc5176c8f82aa5e44f9a8780998c22dfa5fb5ea19305ad020d76d8529f57dbdc43f7e77a637f17b2d5db5b06a2554c1151b1255",
+        "04070eef7bbfe7c9fa76338ed6d6a12b84f61a1a1b5b4d54c009b3993e2262c5fb1f4118919fac6678cb671ccfe5a3ab7ffc42dae56e8f4382ea3e6582ea7fdd15",
+    ];
+
+    let mut acc = G1Affine::generator();
+    let by = Fr::from_str("23938123").unwrap();
+
+    for i in 0..3 {
+        assert!(expected[i] == into_hex(acc).unwrap());
+        assert!(from_hex::<G1>(expected[i]).unwrap() == acc);
+
+        acc = acc * by + acc;
+    }
+} */
