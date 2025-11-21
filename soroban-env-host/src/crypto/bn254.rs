@@ -5,6 +5,7 @@ use ark_bn254::{
     Bn254, Fq12, Fr, G1Affine, G1Projective,
     G2Affine, Fq as Fp, Fq2 as Fp2
 };
+use ark_ec::AffineRepr;
 use ark_ec::{
     pairing::{Pairing, PairingOutput},
     short_weierstrass::{Affine, SWCurveConfig},
@@ -37,11 +38,19 @@ impl Host {
         self.err(ScErrorType::Crypto, ScErrorCode::InvalidInput, msg, &[])
     }
 
+    fn validate_flags(&self, msb: u8) -> Result<(), HostError> {
+        let flags = 0b1100_0000 & msb;
+        match flags {
+            0b0000_0000 => Ok(()),
+            _ => Err(self.err(ScErrorType::Crypto, ScErrorCode::InvalidInput, "bn254 deserialize: the two flag bits must be unset", &[]))
+        }
+    }
+
     pub(crate) fn bn254_g1_affine_deserialize(
         &self,
         bo: BytesObject,
     ) -> Result<G1Affine, HostError> {
-        self.visit_obj(bo, |bytes: &ScBytes| {    
+        self.visit_obj(bo, |bytes: &ScBytes| {  
             if bytes.len() != BN254_G1_SERIALIZED_SIZE {
                 return Err(self.err(
                     ScErrorType::Crypto,
@@ -52,6 +61,10 @@ impl Host {
                         Val::from_u32(BN254_G1_SERIALIZED_SIZE as u32).into(),
                     ],
                 ));
+            }
+            self.validate_flags(bytes[0])?;
+            if bytes.as_slice() == [0u8; BN254_G1_SERIALIZED_SIZE] {
+                return Ok(G1Affine::zero())
             }
 
             let mut x = [0u8; BN254_FP_SERIALIZED_SIZE];
@@ -86,6 +99,11 @@ impl Host {
                     ],
                 ));
             }
+            self.validate_flags(bytes[0])?;
+            if bytes.as_slice() == [0u8; BN254_G2_SERIALIZED_SIZE] {
+                return Ok(G2Affine::zero())
+            }
+
             let mut x = [0u8; BN254_FP2_SERIALIZED_SIZE];
             let mut y = [0u8; BN254_FP2_SERIALIZED_SIZE];
             x.copy_from_slice(&bytes[0..BN254_FP2_SERIALIZED_SIZE]);
