@@ -90,17 +90,8 @@ fn neg_g1(bo: BytesObject, host: &Host) -> Result<BytesObject, HostError> {
     host.bn254_g1_affine_serialize_uncompressed(&-g1)
 }
 
-fn bn254_g2_affine_serialize_uncompressed(
-    host: &Host,
-    g2: &G2Affine,
-) -> Result<BytesObject, HostError> {
-    let mut buf: Vec<u8> = Vec::with_capacity(BN254_G2_SERIALIZED_SIZE);
-    g2.serialize_uncompressed(&mut buf).unwrap();
-    host.add_host_object(host.scbytes_from_slice(&buf)?)
-}
-
 fn sample_g2(host: &Host, rng: &mut StdRng) -> Result<BytesObject, HostError> {
-    bn254_g2_affine_serialize_uncompressed(host, &G2Affine::rand(rng))
+    host.bn254_g2_affine_serialize_uncompressed(&G2Affine::rand(rng))
 }
 
 fn sample_g2_not_on_curve(host: &Host, rng: &mut StdRng) -> Result<BytesObject, HostError> {
@@ -109,7 +100,7 @@ fn sample_g2_not_on_curve(host: &Host, rng: &mut StdRng) -> Result<BytesObject, 
         let y = Fq2::rand(rng);
         let p = G2Affine::new_unchecked(x, y);
         if !p.is_on_curve() {
-            return bn254_g2_affine_serialize_uncompressed(host, &p);
+            return host.bn254_g2_affine_serialize_uncompressed(&p);
         }
     }
 }
@@ -120,7 +111,7 @@ fn sample_g2_not_in_subgroup(host: &Host, rng: &mut StdRng) -> Result<BytesObjec
         if let Some(p) = G2Affine::get_point_from_x_unchecked(x, true) {
             assert!(p.is_on_curve());
             if !p.is_in_correct_subgroup_assuming_on_curve() {
-                return bn254_g2_affine_serialize_uncompressed(host, &p);
+                return host.bn254_g2_affine_serialize_uncompressed(&p);
             }
         }
     }
@@ -132,14 +123,12 @@ fn sample_g2_out_of_range(host: &Host, rng: &mut StdRng) -> Result<BytesObject, 
 }
 
 fn neg_g2(bo: BytesObject, host: &Host) -> Result<BytesObject, HostError> {
-    let g2 = host.bn254_g2_affine_deserialize(
-        bo,
-    )?;
-    bn254_g2_affine_serialize_uncompressed(host, &-g2)
+    let g2 = host.bn254_g2_affine_deserialize(bo)?;
+    host.bn254_g2_affine_serialize_uncompressed(&-g2)
 }
 
 fn g2_zero(host: &Host) -> Result<BytesObject, HostError> {
-    bn254_g2_affine_serialize_uncompressed(host, &G2Affine::zero())
+    host.bn254_g2_affine_serialize_uncompressed(&G2Affine::zero())
 }
 
 fn invalid_g2(
@@ -149,7 +138,7 @@ fn invalid_g2(
 ) -> Result<BytesObject, HostError> {
     let affine = G2Affine::rand(rng);
     assert!(!affine.is_zero());
-    let bo = bn254_g2_affine_serialize_uncompressed(host, &affine)?;
+    let bo = host.bn254_g2_affine_serialize_uncompressed(&affine)?;
     match ty {
         InvalidPointTypes::TooManyBytes => {
             // insert an empty byte to the end
@@ -444,10 +433,10 @@ fn test_bn254_multi_pairing_check() -> Result<(), HostError> {
         let neg_p = neg_g1(p, &host)?;
         let q = G2Affine::rand(&mut rng);
         let r = G2Affine::rand(&mut rng);
-        let q_plus_r = bn254_g2_affine_serialize_uncompressed(&host, &q.add(&r).into_affine())?;
+        let q_plus_r = host.bn254_g2_affine_serialize_uncompressed(&q.add(&r).into_affine())?;
 
-        let q_bytes = bn254_g2_affine_serialize_uncompressed(&host, &q)?;
-        let r_bytes = bn254_g2_affine_serialize_uncompressed(&host, &r)?;
+        let q_bytes = host.bn254_g2_affine_serialize_uncompressed(&q)?;
+        let r_bytes = host.bn254_g2_affine_serialize_uncompressed(&r)?;
 
         //check e(-P, Q+R)*e(P, Q)*e(P, R) == 1
         let g1_vec = host.vec_new_from_slice(&[neg_p.to_val(), p.to_val(), p.to_val()])?;
@@ -480,24 +469,22 @@ fn test_bn254_multi_pairing_check() -> Result<(), HostError> {
         let p = sample_g1(&host, &mut rng)?;
         let neg_p = neg_g1(p, &host)?;
         let q_affine = G2Affine::rand(&mut rng);
-        let neg_q = bn254_g2_affine_serialize_uncompressed(&host, &-q_affine)?;
+        let neg_q = host.bn254_g2_affine_serialize_uncompressed(&-q_affine)?;
 
         // Use bn254_g1_mul for G1 scalar multiplications
         let a_p = host.bn254_g1_mul(p, a)?;
         let b_p = host.bn254_g1_mul(p, b)?;
 
         // Compute G2 scalar multiplications and ab using ark
-        let a_q = bn254_g2_affine_serialize_uncompressed(
-            &host,
+        let a_q = host.bn254_g2_affine_serialize_uncompressed(
             &(q_affine * host.bn254_fr_from_u256val(a)?).into(),
         )?;
-        let b_q = bn254_g2_affine_serialize_uncompressed(
-            &host,
+        let b_q = host.bn254_g2_affine_serialize_uncompressed(
             &(q_affine * host.bn254_fr_from_u256val(b)?).into(),
         )?;
         let ab_fr = host.bn254_fr_from_u256val(a)? * host.bn254_fr_from_u256val(b)?;
         let ab_p = host.bn254_g1_mul(p, fr_to_u256val(&host, ab_fr)?)?;
-        let ab_q = bn254_g2_affine_serialize_uncompressed(&host, &(q_affine * ab_fr).into())?;
+        let ab_q = host.bn254_g2_affine_serialize_uncompressed(&(q_affine * ab_fr).into())?;
 
         // check e([a]P, [b]Q) * e([b]P, [a]Q) * e([ab]P, -Q) * e(-P, [ab]Q) == 1
         let g1_vec =
@@ -585,10 +572,8 @@ fn test_serialization_roundtrip() -> Result<(), HostError> {
     // g2
     {
         let g2_roundtrip_check = |g2: &G2Affine| -> Result<bool, HostError> {
-            let bo = bn254_g2_affine_serialize_uncompressed(&host, &g2)?;
-            let g2_back = host.bn254_g2_affine_deserialize(
-                bo,
-            )?;
+            let bo = host.bn254_g2_affine_serialize_uncompressed(&g2)?;
+            let g2_back = host.bn254_g2_affine_deserialize(bo)?;
             Ok(g2.eq(&g2_back))
         };
         assert!(g2_roundtrip_check(&G2Affine::zero())?);
