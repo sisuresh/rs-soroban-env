@@ -71,8 +71,8 @@ impl Host {
             let mut y = [0u8; BN254_FP_SERIALIZED_SIZE];
             x.copy_from_slice(&bytes[0..BN254_FP_SERIALIZED_SIZE]);
             y.copy_from_slice(&bytes[BN254_FP_SERIALIZED_SIZE..]);
-            let fp_x = self.field_element_deserialize::<BN254_FP_SERIALIZED_SIZE, Fp>(&x,  "bn254 Fp")?; // TODO: tag
-            let fp_y = self.field_element_deserialize::<BN254_FP_SERIALIZED_SIZE, Fp>(&y,  "bn254 Fp")?; // TODO: tag
+            let fp_x = self.field_element_deserialize::<BN254_FP_SERIALIZED_SIZE, Fp>(&x,  "bn254 Fp")?;
+            let fp_y = self.field_element_deserialize::<BN254_FP_SERIALIZED_SIZE, Fp>(&y,  "bn254 Fp")?;
             let pt = G1Affine::new_unchecked(fp_x, fp_y);
             // check point is on curve
             if !self.check_point_is_on_curve(&pt, &ContractCostType::Bn254G1CheckPointOnCurve)? {
@@ -108,8 +108,8 @@ impl Host {
             let mut y = [0u8; BN254_FP2_SERIALIZED_SIZE];
             x.copy_from_slice(&bytes[0..BN254_FP2_SERIALIZED_SIZE]);
             y.copy_from_slice(&bytes[BN254_FP2_SERIALIZED_SIZE..]);
-            let fp2_x = self.field_element_deserialize::<BN254_FP2_SERIALIZED_SIZE, Fp2>(&x,  "bn254 Fp2")?; // TODO: tag
-            let fp2_y = self.field_element_deserialize::<BN254_FP2_SERIALIZED_SIZE, Fp2>(&y,  "bn254 Fp2")?; // TODO: tag
+            let fp2_x = self.field_element_deserialize::<BN254_FP2_SERIALIZED_SIZE, Fp2>(&x,  "bn254 Fp2")?;
+            let fp2_y = self.field_element_deserialize::<BN254_FP2_SERIALIZED_SIZE, Fp2>(&y,  "bn254 Fp2")?;
             let pt = G2Affine::new_unchecked(fp2_x, fp2_y);
             // check point is on curve
             if !self.check_point_is_on_curve(&pt, &ContractCostType::Bn254G2CheckPointOnCurve)? {
@@ -157,6 +157,7 @@ impl Host {
     // This is the internal routine performing serialization on various
     // element types, which can be conceptually decomposed into units of Fp
     // (the base field element), and will be charged accordingly.
+    // TODO: this function is wrong and needs to be removed!!
     pub(crate) fn bn254_serialize_uncompressed_into_slice<
         const EXPECTED_SIZE: usize,
         T: CanonicalSerialize,
@@ -207,6 +208,7 @@ impl Host {
         self.bytes_new_from_slice(&buf)
     }
 
+    #[cfg(test)]
     pub(crate) fn bn254_g2_affine_serialize_uncompressed(
         &self,
         g2: &G2Affine,

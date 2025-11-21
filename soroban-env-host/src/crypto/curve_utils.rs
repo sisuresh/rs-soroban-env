@@ -68,6 +68,8 @@ impl Host {
             ));
         }
 
+        // TODO: handle metering
+
         elem.serialize_uncompressed(&mut *buf).map_err(|_e| {
             self.err(
                 ScErrorType::Crypto,
