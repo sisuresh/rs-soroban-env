@@ -792,3 +792,79 @@ fn g1_vectors() -> Result<(), HostError> {
     Ok(())
 }
 
+// From https://www.evm.codes/precompiled
+#[test]
+fn g1_add_mul_hardcoded() -> Result<(), HostError> {
+    let host = observe_host!(Host::test_host());
+    host.enable_debug()?;
+
+    let expected_sum = host.test_bin_obj(&hex::decode("030644e72e131a029b85045b68181585d97816a916871ca8d3c208c16d87cfd315ed738c0e0a7c92e7845f96b2ae9c0a68a6a449e3538fc7ff3ebf7a5a18a2c4").unwrap())?;
+
+    let g_1_2 = "00000000000000000000000000000000000000000000000000000000000000010000000000000000000000000000000000000000000000000000000000000002";
+
+    let bytes = hex::decode(g_1_2).unwrap();
+    let g1_bytes = host.test_bin_obj(&bytes)?;
+
+    // Test g1_add: g1_bytes + g1_bytes
+    let res_add = host.bn254_g1_add(g1_bytes, g1_bytes)?;
+
+    assert_eq!(
+        (*host).compare(&res_add.to_val(), &expected_sum.to_val())?,
+        core::cmp::Ordering::Equal
+    );
+
+    // Test g1_mul: g1_bytes * 2
+    let scalar_2 = U256Val::from_u32(2);
+    let res_mul = host.bn254_g1_mul(g1_bytes, scalar_2)?;
+
+    assert_eq!(
+        (*host).compare(&res_mul.to_val(), &expected_sum.to_val())?,
+        core::cmp::Ordering::Equal
+    );
+
+    Ok(())
+}
+
+// From https://www.evm.codes/precompiled
+#[test]
+fn g1_pairing_hardcoded() -> Result<(), HostError> {
+    let host = observe_host!(Host::test_host());
+    host.enable_debug()?;
+
+    // From Solidity pairing example
+    // First pairing: e(G1_1, G2_1)
+    let g1_1_x = "2cf44499d5d27bb186308b7af7af02ac5bc9eeb6a3d147c186b21fb1b76e18da";
+    let g1_1_y = "2c0f001f52110ccfe69108924926e45f0b0c868df0e7bde1fe16d3242dc715f6";
+    let g1_1_bytes = hex::decode(format!("{}{}", g1_1_x, g1_1_y)).unwrap();
+    let g1_1 = host.test_bin_obj(&g1_1_bytes)?;
+
+    let g2_1_x1 = "1fb19bb476f6b9e44e2a32234da8212f61cd63919354bc06aef31e3cfaff3ebc";
+    let g2_1_x0 = "22606845ff186793914e03e21df544c34ffe2f2f3504de8a79d9159eca2d98d9";
+    let g2_1_y1 = "2bd368e28381e8eccb5fa81fc26cf3f048eea9abfdd85d7ed3ab3698d63e4f90";
+    let g2_1_y0 = "2fe02e47887507adf0ff1743cbac6ba291e66f59be6bd763950bb16041a0a85e";
+    let g2_1_bytes = hex::decode(format!("{}{}{}{}", g2_1_x1, g2_1_x0, g2_1_y1, g2_1_y0)).unwrap();
+    let g2_1 = host.test_bin_obj(&g2_1_bytes)?;
+
+    // Second pairing: e(G1_2, G2_2)
+    let g1_2_x = "0000000000000000000000000000000000000000000000000000000000000001";
+    let g1_2_y = "30644e72e131a029b85045b68181585d97816a916871ca8d3c208c16d87cfd45";
+    let g1_2_bytes = hex::decode(format!("{}{}", g1_2_x, g1_2_y)).unwrap();
+    let g1_2 = host.test_bin_obj(&g1_2_bytes)?;
+
+    let g2_2_x1 = "1971ff0471b09fa93caaf13cbf443c1aede09cc4328f5a62aad45f40ec133eb4";
+    let g2_2_x0 = "091058a3141822985733cbdddfed0fd8d6c104e9e9eff40bf5abfef9ab163bc7";
+    let g2_2_y1 = "2a23af9a5ce2ba2796c1f4e453a370eb0af8c212d9dc9acd8fc02c2e907baea2";
+    let g2_2_y0 = "23a8eb0b0996252cb548a4487da97b02422ebc0e834613f954de6c7e0afdc1fc";
+    let g2_2_bytes = hex::decode(format!("{}{}{}{}", g2_2_x1, g2_2_x0, g2_2_y1, g2_2_y0)).unwrap();
+    let g2_2 = host.test_bin_obj(&g2_2_bytes)?;
+
+    // Test multi pairing check: e(G1_1, G2_1) * e(G1_2, G2_2) == 1
+    host.budget_ref().reset_default()?;
+    let g1_vec = host.vec_new_from_slice(&[g1_1.to_val(), g1_2.to_val()])?;
+    let g2_vec = host.vec_new_from_slice(&[g2_1.to_val(), g2_2.to_val()])?;
+    let res = host.bn254_multi_pairing_check(g1_vec, g2_vec)?;
+
+    assert!(res.as_val().is_true());
+
+    Ok(())
+}
