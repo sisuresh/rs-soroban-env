@@ -19,6 +19,10 @@ use sha3::Keccak256;
 
 use ecdsa::{signature::hazmat::PrehashVerifier, PrimeCurve, Signature, SignatureSize};
 use elliptic_curve::CurveArithmetic;
+
+//TODO:Remove this when we remove GenericArray. Some of the
+// crypto crates we use like elliptic-curve still depend on it.
+// When they migrate, we can move away from GenericArray as well.
 #[allow(deprecated)]
 use generic_array::ArrayLength;
 pub(crate) mod bls12_381;
