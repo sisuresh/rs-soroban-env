@@ -289,6 +289,8 @@ allow_unsafe = true
 build.allow_apis = [
     "env",
     "process",
+    "fs",
+    "terminate"
 ]
 allow_unsafe = true
 
