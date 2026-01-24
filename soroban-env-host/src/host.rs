@@ -556,7 +556,9 @@ impl Host {
     }
 
     pub(crate) fn check_ledger_protocol_supported(&self) -> Result<(), HostError> {
+        #[cfg(not(feature = "next"))]
         use soroban_env_common::meta;
+
         let proto = self.get_ledger_protocol_version()?;
         // There are some protocol-gating tests that want to register
         // old-protocol contracts and run them in the new host. We allow this in
@@ -573,6 +575,8 @@ impl Host {
                 &[proto.into()],
             ));
         }
+
+        #[cfg(not(feature = "next"))]
         if proto > meta::INTERFACE_VERSION.protocol {
             return Err(self.err(
                 ScErrorType::Context,
