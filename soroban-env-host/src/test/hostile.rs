@@ -856,38 +856,36 @@ fn test_corrupt_custom_section() -> Result<(), HostError> {
         (ScErrorType::WasmVm, ScErrorCode::InvalidInput)
     ));
 
-    if cfg!(not(feature = "next")) {
-        // invalid: protocol is old but pre-release version is non-zero
-        let res = host.register_test_contract_wasm_from_source_account(
-            wasm_util::wasm_module_with_custom_section(
-                "contractenvmetav0",
-                interface_meta_with_custom_versions(ledger_protocol - 1, 1).as_slice(),
-            )
-            .as_slice(),
-            generate_account_id(&host),
-            generate_bytes_array(&host),
-        );
-        assert!(HostError::result_matches_err(
-            res,
-            (ScErrorType::WasmVm, ScErrorCode::InvalidInput)
-        ));
+    // invalid: protocol is old but pre-release version is non-zero
+    let res = host.register_test_contract_wasm_from_source_account(
+        wasm_util::wasm_module_with_custom_section(
+            "contractenvmetav0",
+            interface_meta_with_custom_versions(ledger_protocol - 1, 1).as_slice(),
+        )
+        .as_slice(),
+        generate_account_id(&host),
+        generate_bytes_array(&host),
+    );
+    assert!(HostError::result_matches_err(
+        res,
+        (ScErrorType::WasmVm, ScErrorCode::InvalidInput)
+    ));
 
-        // invalid: protocol is current but pre-release version doesn't match env's
-        let env_pre = meta::INTERFACE_VERSION.pre_release;
-        let res = host.register_test_contract_wasm_from_source_account(
-            wasm_util::wasm_module_with_custom_section(
-                "contractenvmetav0",
-                interface_meta_with_custom_versions(ledger_protocol, env_pre + 1).as_slice(),
-            )
-            .as_slice(),
-            generate_account_id(&host),
-            generate_bytes_array(&host),
-        );
-        assert!(HostError::result_matches_err(
-            res,
-            (ScErrorType::WasmVm, ScErrorCode::InvalidInput)
-        ));
-    }
+    // invalid: protocol is current but pre-release version doesn't match env's
+    let env_pre = meta::INTERFACE_VERSION.pre_release;
+    let res = host.register_test_contract_wasm_from_source_account(
+        wasm_util::wasm_module_with_custom_section(
+            "contractenvmetav0",
+            interface_meta_with_custom_versions(ledger_protocol, env_pre + 1).as_slice(),
+        )
+        .as_slice(),
+        generate_account_id(&host),
+        generate_bytes_array(&host),
+    );
+    assert!(HostError::result_matches_err(
+        res,
+        (ScErrorType::WasmVm, ScErrorCode::InvalidInput)
+    ));
 
     Ok(())
 }

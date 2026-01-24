@@ -327,8 +327,6 @@ impl ParsedModule {
             }
         };
 
-        // Not used when "next" is enabled
-        #[cfg(not(feature = "next"))]
         let got_pre = interface_version.pre_release;
 
         let got_proto = interface_version.protocol;
@@ -336,13 +334,6 @@ impl ParsedModule {
         if got_proto < want_proto {
             // Old protocols are finalized, we only support contracts
             // with similarly finalized (zero) prerelease numbers.
-            //
-            // Note that we only enable this check if the "next" feature isn't enabled
-            // because a "next" stellar-core can still run a "curr" test using non-finalized
-            // test Wasms. The "next" feature isn't safe for production and is meant to
-            // simulate the protocol version after the one currently supported in
-            // stellar-core, so bypassing this check for "next" is safe.
-            #[cfg(not(feature = "next"))]
             if got_pre != 0 {
                 return Err(context.error(
                     (ScErrorType::WasmVm, ScErrorCode::InvalidInput).into(),
@@ -351,24 +342,18 @@ impl ParsedModule {
                 ));
             }
         } else if got_proto == want_proto {
-            // Relax this check as well for the "next" feature to allow for flexibility while testing.
-            // stellar-core can pass in an older protocol version, in which case the pre-release version
-            // will not match up with the "next" feature (The "next" pre-release version is always 1).
-            #[cfg(not(feature = "next"))]
-            {
-                // Current protocol might have a nonzero prerelease number; we will
-                // allow it only if it matches the current prerelease exactly.
-                let want_pre = meta::INTERFACE_VERSION.pre_release;
-                if want_pre != got_pre {
-                    return Err(context.error(
-                        (ScErrorType::WasmVm, ScErrorCode::InvalidInput).into(),
-                        "contract pre-release number for current protocol does not match host",
-                        &[
-                            Val::from_u32(got_pre).to_val(),
-                            Val::from_u32(want_pre).to_val(),
-                        ],
-                    ));
-                }
+            // Current protocol might have a nonzero prerelease number; we will
+            // allow it only if it matches the current prerelease exactly.
+            let want_pre = meta::INTERFACE_VERSION.pre_release;
+            if want_pre != got_pre {
+                return Err(context.error(
+                    (ScErrorType::WasmVm, ScErrorCode::InvalidInput).into(),
+                    "contract pre-release number for current protocol does not match host",
+                    &[
+                        Val::from_u32(got_pre).to_val(),
+                        Val::from_u32(want_pre).to_val(),
+                    ],
+                ));
             }
         } else {
             // Future protocols we don't allow. It might be nice (in the sense

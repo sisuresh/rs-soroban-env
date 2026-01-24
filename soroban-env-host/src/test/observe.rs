@@ -6,9 +6,9 @@
 // If observations differ from previous runs, it's considered an error. If you
 // want to make an intentional change, run with UPDATE_OBSERVATIONS=1.
 
-#![cfg_attr(any(feature = "next", not(feature = "testutils")), allow(dead_code))]
+#![cfg_attr(not(feature = "testutils"), allow(dead_code))]
 #![cfg_attr(
-    any(feature = "next", not(feature = "testutils")),
+    not(feature = "testutils"),
     allow(unused_imports)
 )]
 
@@ -55,7 +55,7 @@ fn diff_line(last: &String, new: &String) -> String {
         .join(",")
 }
 
-#[cfg(all(not(feature = "next"), feature = "testutils"))]
+#[cfg(feature = "testutils")]
 impl Observations {
     fn load(protocol: u32, testname: &str) -> Self {
         let path = full_path(protocol, testname);
@@ -170,7 +170,7 @@ pub(crate) struct ObservedHost {
 }
 
 impl ObservedHost {
-    #[cfg(any(feature = "next", not(feature = "testutils")))]
+    #[cfg(not(feature = "testutils"))]
     pub(crate) fn new(testname: &'static str, host: Host) -> Self {
         let protocol = 0;
         let old_obs = Rc::new(RefCell::new(Observations::default()));
@@ -184,7 +184,7 @@ impl ObservedHost {
         }
     }
 
-    #[cfg(all(not(feature = "next"), feature = "testutils"))]
+    #[cfg(feature = "testutils")]
     pub(crate) fn new(testname: &'static str, host: Host) -> Self {
         let protocol = Host::current_test_protocol();
         let old_obs = Rc::new(RefCell::new(Observations::load(protocol, testname)));
@@ -202,7 +202,7 @@ impl ObservedHost {
         oh
     }
 
-    #[cfg(all(not(feature = "next"), feature = "testutils"))]
+    #[cfg(feature = "testutils")]
     fn make_obs_hook(
         &self,
     ) -> Rc<dyn for<'a> Fn(&'a Host, TraceEvent<'a>) -> Result<(), HostError>> {
@@ -232,7 +232,7 @@ impl std::ops::Deref for ObservedHost {
     }
 }
 
-#[cfg(all(not(feature = "next"), feature = "testutils"))]
+#[cfg(feature = "testutils")]
 impl Drop for ObservedHost {
     fn drop(&mut self) {
         self.host

@@ -173,14 +173,9 @@ impl Host {
             if test_protocol >= min_supported_protocol && test_protocol <= max_supported_protocol {
                 test_protocol
             } else if test_protocol > max_supported_protocol {
-                let next_advice = if cfg!(feature = "next") {
-                    ""
-                } else {
-                    " (consider building with --feature=next)"
-                };
                 panic!(
-                    "TEST_PROTOCOL={} is higher than the max supported protocol {}{}",
-                    test_protocol, max_supported_protocol, next_advice
+                    "TEST_PROTOCOL={} is higher than the max supported protocol {}",
+                    test_protocol, max_supported_protocol
                 );
             } else {
                 panic!(

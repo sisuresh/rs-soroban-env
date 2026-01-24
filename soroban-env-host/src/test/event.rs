@@ -267,7 +267,7 @@ fn test_diagnostic_events_do_not_affect_metering_with_debug_on_and_insufficient_
 }
 
 #[test]
-#[cfg(all(not(feature = "next"), feature = "testutils"))]
+#[cfg(feature = "testutils")]
 // This is a regression test: we accidentally wired up the tracing
 // infrastructure in such a way that when it did a try_borrow on host fields it
 // wanted to observe, it called the helpers that emit "internal error"
