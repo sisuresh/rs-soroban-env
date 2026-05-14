@@ -150,14 +150,42 @@ pub fn compute_transaction_resource_fee(
     tx_resources: &TransactionResources,
     fee_config: &FeeConfiguration,
 ) -> (i64, i64) {
+    // Default protocol is the max this host supports; callers replaying older
+    // ledgers must use `compute_transaction_resource_fee_with_protocol`.
+    compute_transaction_resource_fee_with_protocol(
+        tx_resources,
+        fee_config,
+        crate::meta::INTERFACE_VERSION.protocol,
+    )
+}
+
+/// Protocol-aware variant of `compute_transaction_resource_fee`. Pre-CAP-66
+/// protocols (p21, p22) combined the read and write entry counts when charging
+/// the disk-read-entry fee; CAP-66 (p23+) separates them since live Soroban
+/// state moved in-memory.
+pub fn compute_transaction_resource_fee_with_protocol(
+    tx_resources: &TransactionResources,
+    fee_config: &FeeConfiguration,
+    protocol_version: u32,
+) -> (i64, i64) {
     let compute_fee = compute_fee_per_increment(
         tx_resources.instructions,
         fee_config.fee_per_instruction_increment,
         INSTRUCTIONS_INCREMENT,
     );
+    // Pre-CAP-66: ledger_read_entry_fee = fee_per_read_entry * (read_entries + write_entries).
+    // The numeric value `disk_read_entries` here corresponds to pre-p23
+    // `read_entries`, so we add `write_entries` to preserve the old formula.
+    let read_entry_count_for_fee = if protocol_version < 23 {
+        tx_resources
+            .disk_read_entries
+            .saturating_add(tx_resources.write_entries)
+    } else {
+        tx_resources.disk_read_entries
+    };
     let ledger_read_entry_fee: i64 = fee_config
         .fee_per_disk_read_entry
-        .saturating_mul(tx_resources.disk_read_entries.into());
+        .saturating_mul(read_entry_count_for_fee.into());
     let ledger_write_entry_fee = fee_config
         .fee_per_write_entry
         .saturating_mul(tx_resources.write_entries.into());
@@ -292,11 +320,33 @@ pub fn compute_rent_fee(
     fee_config: &RentFeeConfiguration,
     current_ledger_seq: u32,
 ) -> i64 {
+    compute_rent_fee_with_protocol(
+        changed_entries,
+        fee_config,
+        current_ledger_seq,
+        crate::meta::INTERFACE_VERSION.protocol,
+    )
+}
+
+/// Protocol-aware variant of `compute_rent_fee`. The `is_code_entry` rent
+/// discount (`CODE_ENTRY_RENT_DISCOUNT_FACTOR`) was introduced in p25; older
+/// protocols charged full rent on code entries.
+pub fn compute_rent_fee_with_protocol(
+    changed_entries: &[LedgerEntryRentChange],
+    fee_config: &RentFeeConfiguration,
+    current_ledger_seq: u32,
+    protocol_version: u32,
+) -> i64 {
     let mut fee: i64 = 0;
     let mut extended_entries: i64 = 0;
     let mut extended_entry_key_size_bytes: u32 = 0;
     for e in changed_entries {
-        fee = fee.saturating_add(rent_fee_per_entry_change(e, fee_config, current_ledger_seq));
+        fee = fee.saturating_add(rent_fee_per_entry_change(
+            e,
+            fee_config,
+            current_ledger_seq,
+            protocol_version,
+        ));
         if e.old_live_until_ledger < e.new_live_until_ledger {
             extended_entries = extended_entries.saturating_add(1);
             extended_entry_key_size_bytes =
@@ -361,6 +411,7 @@ fn rent_fee_per_entry_change(
     entry_change: &LedgerEntryRentChange,
     fee_config: &RentFeeConfiguration,
     current_ledger: u32,
+    protocol_version: u32,
 ) -> i64 {
     let mut fee: i64 = 0;
     // If there was a difference-in-expiration, pay for the new ledger range
@@ -388,7 +439,10 @@ fn rent_fee_per_entry_change(
             fee_config,
         ));
     }
-    if entry_change.is_code_entry {
+    // The code-entry rent discount was introduced in p25. Pre-25 protocols
+    // charged full rent on code entries; the discount must not be applied
+    // when replaying older ledgers.
+    if entry_change.is_code_entry && protocol_version >= 25 {
         fee /= CODE_ENTRY_RENT_DISCOUNT_FACTOR;
     }
     fee

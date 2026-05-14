@@ -165,3 +165,81 @@ pub(crate) fn burn(e: &Host, from: Address, amount: i128) -> Result<(), HostErro
     e.contract_event(topics.into(), amount.try_into_val(e)?)?;
     Ok(())
 }
+
+// ---------------------------------------------------------------------------
+// Legacy (pre-p23) SAC events.
+//
+// CAP-67 (introduced in p23) restructured SAC event emission: `transfer`
+// gained the issuer-dispatch behaviour that can re-emit as `mint`/`burn`,
+// and `mint`/`clawback`/`set_authorized` dropped the admin field from their
+// topics. For ledger replay against p21/p22 we must emit the original
+// bytes exactly. The functions below mirror the p22 implementations.
+// ---------------------------------------------------------------------------
+
+pub(crate) fn transfer_legacy(
+    e: &Host,
+    from: Address,
+    to: Address,
+    amount: i128,
+) -> Result<(), HostError> {
+    let topics = host_vec![
+        e,
+        Symbol::try_from_val(e, &"transfer")?,
+        from,
+        to,
+        read_name(e)?
+    ]?;
+    e.contract_event(topics.into(), amount.try_into_val(e)?)?;
+    Ok(())
+}
+
+pub(crate) fn mint_legacy(
+    e: &Host,
+    admin: Address,
+    to: Address,
+    amount: i128,
+) -> Result<(), HostError> {
+    let topics = host_vec![
+        e,
+        Symbol::try_from_val(e, &"mint")?,
+        admin,
+        to,
+        read_name(e)?
+    ]?;
+    e.contract_event(topics.into(), amount.try_into_val(e)?)?;
+    Ok(())
+}
+
+pub(crate) fn clawback_legacy(
+    e: &Host,
+    admin: Address,
+    from: Address,
+    amount: i128,
+) -> Result<(), HostError> {
+    let topics = host_vec![
+        e,
+        Symbol::try_from_val(e, &"clawback")?,
+        admin,
+        from,
+        read_name(e)?
+    ]?;
+    e.contract_event(topics.into(), amount.try_into_val(e)?)?;
+    Ok(())
+}
+
+pub(crate) fn set_authorized_legacy(
+    e: &Host,
+    admin: Address,
+    id: Address,
+    authorize: bool,
+) -> Result<(), HostError> {
+    let topics = host_vec![
+        e,
+        Symbol::try_from_val(e, &"set_authorized")?,
+        admin,
+        id,
+        read_name(e)?
+    ]?;
+    e.contract_event(topics.into(), authorize.try_into_val(e)?)?;
+    Ok(())
+}

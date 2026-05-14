@@ -219,7 +219,14 @@ impl StellarAssetContract {
 
         spend_balance(e, from.metered_clone(e)?, amount)?;
         receive_balance(e, to.metered_clone(e)?, amount)?;
-        event::transfer_maybe_with_issuer(e, from, to, to_mux.id()?, amount)?;
+        // p23 introduced CAP-67 (issuer-dispatch in event emission and the
+        // optional muxed-id field). Pre-23 ledgers always emit the plain
+        // legacy `transfer` event.
+        if e.get_ledger_protocol_version()? >= 23 {
+            event::transfer_maybe_with_issuer(e, from, to, to_mux.id()?, amount)?;
+        } else {
+            event::transfer_legacy(e, from, to, amount)?;
+        }
         Ok(())
     }
 
@@ -243,7 +250,11 @@ impl StellarAssetContract {
         spend_allowance(e, from.metered_clone(e)?, spender, amount)?;
         spend_balance(e, from.metered_clone(e)?, amount)?;
         receive_balance(e, to.metered_clone(e)?, amount)?;
-        event::transfer_maybe_with_issuer(e, from, to, None, amount)?;
+        if e.get_ledger_protocol_version()? >= 23 {
+            event::transfer_maybe_with_issuer(e, from, to, None, amount)?;
+        } else {
+            event::transfer_legacy(e, from, to, amount)?;
+        }
         Ok(())
     }
 
@@ -307,7 +318,12 @@ impl StellarAssetContract {
         )?;
 
         spend_balance_no_authorization_check(e, from.metered_clone(e)?, amount)?;
-        event::clawback(e, from, amount)?;
+        // CAP-67 (p23) dropped the admin topic from clawback events.
+        if e.get_ledger_protocol_version()? >= 23 {
+            event::clawback(e, from, amount)?;
+        } else {
+            event::clawback_legacy(e, admin, from, amount)?;
+        }
         Ok(())
     }
 
@@ -327,7 +343,12 @@ impl StellarAssetContract {
         )?;
 
         write_authorization(e, addr.metered_clone(e)?, authorize)?;
-        event::set_authorized(e, addr, authorize)?;
+        // CAP-67 (p23) dropped the admin topic from set_authorized events.
+        if e.get_ledger_protocol_version()? >= 23 {
+            event::set_authorized(e, addr, authorize)?;
+        } else {
+            event::set_authorized_legacy(e, admin, addr, authorize)?;
+        }
         Ok(())
     }
 
@@ -346,7 +367,13 @@ impl StellarAssetContract {
         )?;
 
         receive_balance(e, to.metered_clone(e)?, amount)?;
-        event::mint(e, to, None, amount)?;
+        // CAP-67 (p23) dropped the admin topic from mint events and added
+        // the optional muxed-id field.
+        if e.get_ledger_protocol_version()? >= 23 {
+            event::mint(e, to, None, amount)?;
+        } else {
+            event::mint_legacy(e, admin, to, amount)?;
+        }
         Ok(())
     }
 

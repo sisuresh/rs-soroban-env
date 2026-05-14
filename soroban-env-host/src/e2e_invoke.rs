@@ -179,8 +179,23 @@ fn get_ledger_changes(
     init_ttl_entries: TtlEntryMap,
     min_live_until_ledger: u32,
     restored_keys: &Option<RestoredKeySet>,
+    protocol_version: u32,
     #[cfg(any(test, feature = "recording_mode"))] current_ledger_seq: u32,
 ) -> Result<Vec<LedgerEntryChange>, HostError> {
+    // `entry_size_for_rent` adds the wasm in-memory cost on top of the raw
+    // XDR size for ContractCode entries; that addition was introduced in
+    // CAP-66 (p23). Pre-23 ledgers must use the raw XDR size for rent
+    // accounting to replay byte-identically.
+    let entry_size_for_rent_proto = |budget: &Budget,
+                                     entry: &LedgerEntry,
+                                     entry_xdr_size: u32|
+     -> Result<u32, HostError> {
+        if protocol_version >= 23 {
+            entry_size_for_rent(budget, entry, entry_xdr_size)
+        } else {
+            Ok(entry_xdr_size)
+        }
+    };
     // Skip allocation metering for this for the sake of simplicity - the
     // bounding factor here is XDR decoding which is metered.
     let mut changes = Vec::with_capacity(storage.map.len());
@@ -220,7 +235,7 @@ fn get_ledger_changes(
             metered_write_xdr(budget, old_entry.as_ref(), &mut buf)?;
 
             entry_change.old_entry_size_bytes_for_rent =
-                entry_size_for_rent(budget, &old_entry, buf.len() as u32)?;
+                entry_size_for_rent_proto(budget, &old_entry, buf.len() as u32)?;
 
             if let Some(ref mut ttl_change) = &mut entry_change.ttl_change {
                 ttl_change.old_live_until_ledger =
@@ -257,7 +272,7 @@ fn get_ledger_changes(
                     let mut entry_buf = vec![];
                     metered_write_xdr(budget, entry.as_ref(), &mut entry_buf)?;
                     entry_change.new_entry_size_bytes_for_rent =
-                        entry_size_for_rent(budget, &entry, entry_buf.len() as u32)?;
+                        entry_size_for_rent_proto(budget, &entry, entry_buf.len() as u32)?;
                     entry_change.encoded_new_value = Some(entry_buf);
 
                     if let Some(restored_keys) = &restored_keys {
@@ -417,6 +432,7 @@ pub fn invoke_host_function<T: AsRef<[u8]>, I: ExactSizeIterator<Item = T>>(
     let restored_keys = build_restored_key_set(&budget, &resources, &restored_rw_entry_indices)?;
     let footprint = build_storage_footprint_from_xdr(&budget, resources.footprint)?;
     let current_ledger_seq = ledger_info.sequence_number;
+    let protocol_version = ledger_info.protocol_version;
     let min_live_until_ledger = ledger_info
         .min_live_until_ledger_checked(ContractDataDurability::Persistent)
         .ok_or_else(|| {
@@ -491,6 +507,7 @@ pub fn invoke_host_function<T: AsRef<[u8]>, I: ExactSizeIterator<Item = T>>(
             init_ttl_map,
             min_live_until_ledger,
             &restored_keys,
+            protocol_version,
             #[cfg(any(test, feature = "recording_mode"))]
             current_ledger_seq,
         )?;
@@ -650,6 +667,7 @@ pub fn invoke_host_function_in_recording_mode(
     let host = Host::with_storage_and_budget(storage, budget.clone());
     let is_recording_auth = matches!(auth_mode, RecordingInvocationAuthMode::Recording(_));
     let ledger_seq = ledger_info.sequence_number;
+    let protocol_version = ledger_info.protocol_version;
     let min_live_until_ledger = ledger_info
         .min_live_until_ledger_checked(ContractDataDurability::Persistent)
         .ok_or_else(|| {
@@ -813,6 +831,7 @@ pub fn invoke_host_function_in_recording_mode(
             init_ttl_map,
             min_live_until_ledger,
             &restored_keys,
+            protocol_version,
             ledger_seq,
         )?;
         // Add the keys that only exist in the footprint, but not in the

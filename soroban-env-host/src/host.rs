@@ -84,8 +84,14 @@ pub struct CoverageScoreboard {
     pub vm_to_vm_calls: usize,
 }
 
-// The soroban 25.x host only supports protocol 25 and later.
-pub(crate) const MIN_LEDGER_PROTOCOL_VERSION: u32 = 25;
+// The soroban 25.x host now covers every Soroban-era protocol: 20, 21, 22,
+// 23, 24 and 25. The post-p22 behavioural changes (CAP-66 fee model,
+// CAP-67 SAC event reshaping, `entry_size_for_rent` for ContractCode rent,
+// the p25-only `is_code_entry` rent discount, the wasmparser pre-validation,
+// and the SelfAllowed-reentry / frame-pop instance-storage changes) are all
+// protocol-gated against `ledger_protocol_version` so that pre-25 ledgers
+// replay bit-identically against this host.
+pub(crate) const MIN_LEDGER_PROTOCOL_VERSION: u32 = 20;
 
 #[derive(Clone, Default)]
 struct HostImpl {

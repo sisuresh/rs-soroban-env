@@ -527,9 +527,10 @@ impl Host {
             let instance_storage_persisted = self.persist_instance_storage();
             match instance_storage_persisted {
                 Ok(persisted) => {
-                    // If we did persist instance storage, we may need to reload
-                    // it into the re-entrant parent frames.
-                    if persisted {
+                    // Cross-frame instance-storage reload was added in p25; for
+                    // p23/p24 ledgers we must skip it to preserve the original
+                    // frame-pop behaviour during replay.
+                    if persisted && self.get_ledger_protocol_version()? >= 25 {
                         // Similarly to above, if reloading instance storage, if
                         // this fails we need to roll back everything.
                         if let Err(e) = self.maybe_reload_instance_storage_on_frame_pop() {
@@ -885,10 +886,13 @@ impl Host {
                 // are all acceptable.
                 (_, None) | (ContractReentryMode::Allowed, _) => (),
                 (ContractReentryMode::SelfAllowed, Some(0)) => {
-                    // Persist the instance storage before making a re-entrant
-                    // call in order to allow the re-entered call to see the
-                    // instance storage changes made so far in the current call.
-                    self.persist_instance_storage()?;
+                    // Persisting instance storage on self-reentry was added
+                    // in p25 so the re-entered call can see in-progress
+                    // changes. Pre-25 ledgers did not do this; skip the
+                    // persist to keep replay byte-identical.
+                    if self.get_ledger_protocol_version()? >= 25 {
+                        self.persist_instance_storage()?;
+                    }
                 }
 
                 // But any non-immediate-reentry in SelfAllowed mode,
